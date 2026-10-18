@@ -18,7 +18,7 @@ let S = load();
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) { toast('⚠️ Could not save on this phone'); } queuePush(); }
 if (navigator.storage?.persist) navigator.storage.persist();
 
-const UI = {signup:false, tab:'train', group:'', tmins:0, ob:0, obd:{}, editing:false, modal:null, showActive:true, q:'', pick:null, P:null, E:null, hid:null, prog:null, skill:null, summary:null, menu:null};
+const UI = {signup:false, stack:[], tab:'today', group:'', tmins:0, ob:0, obd:{}, editing:false, modal:null, showActive:true, q:'', pick:null, P:null, E:null, hid:null, prog:null, skill:null, summary:null, menu:null};
 
 // ---------- helpers ----------
 function exById(id){
@@ -107,63 +107,69 @@ function beep(){
 
 // ---------- views ----------
 function tabbar(){
-  const tabs = [['train','🏋️','Train'],['coach','💬','Coach'],['skills','⭐','Skills'],['history','📈','Progress']];
+  const tabs = [['today','🏠','Today'],['workouts','🏋️','Workouts'],['programs','📅','Programs'],['coach','💬','Coach'],['history','📈','Progress']];
   return `<nav class="tabbar">${tabs.map(([k, i, l]) => `<button class="${UI.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}"><span class="i">${i}</span>${l}</button>`).join('')}</nav>`;
 }
 function resumeBar(){
   if (!S.active || UI.showActive) return '';
   return `<button class="resume" data-a="resume">▶ <span class="sp" style="text-align:left">${esc(S.active.name)}</span><span class="timer" style="color:inherit;font-size:18px" data-elapsed>${fmtT((Date.now() - S.active.start) / 1000)}</span></button>`;
 }
+// Revolut-style building blocks: grouped list rows and round quick actions
+function lrow({a, id = '', v = '', ic, title, sub = '', right = '›', tint = ''}){
+  return `<button class="lrow" data-a="${a}"${id ? ` data-id="${esc(id)}"` : ''}${v !== '' ? ` data-v="${esc(v)}"` : ''}><span class="lic"${tint ? ` style="background:${tint}"` : ''}>${ic}</span><span class="lt"><b>${title}</b>${sub ? `<span>${sub}</span>` : ''}</span><span class="lr">${right}</span></button>`;
+}
+const listGroup = (title, rows) => rows.length ? `${title ? `<h2>${title}</h2>` : ''}<div class="group">${rows.join('')}</div>` : '';
+const qa = (a, ic, label, dot) => `<button class="qa" data-a="${a}"><span class="qai">${ic}${dot ? '<i class="dot"></i>' : ''}</span>${label}</button>`;
 function wCard(w){
-  const mins = estMin(trim(w.ex, UI.tmins));
-  return `<button class="card tap wcard" data-a="preview" data-id="${w.id}"><div class="sp" style="min-width:0">
-    <div style="font-weight:900;font-size:19px">${esc(w.n)}</div>
-    <div class="mut sm" style="margin-top:2px">${esc(w.d || w.notes || w.ex.map(e => exById(e[0]).n).slice(0, 3).join(', '))}</div>
-    <div class="sm" style="margin-top:8px;color:var(--acc);font-weight:800">⏱ ${mins} min · ${trim(w.ex, UI.tmins).length} exercises${w.v ? ' · ' + platform(w.v)[1] : ''}</div></div><span class="chev">›</span></button>`;
+  const t = trim(w.ex, UI.tmins);
+  return lrow({a:'preview', id:w.id, ic:(GROUPS.find(g => g[0] === w.cat) || ['', '🏋️'])[1], title:esc(w.n), sub:`${estMin(t)} min · ${t.length} exercises${w.custom ? ' · mine' : ''}`});
 }
 const GROUPS = [['Legs','🦵'],['Glutes','🍑'],['Push','🏋️'],['Pull','🧗'],['Upper','💪'],['Arms','🦾'],['Full Body','🔥'],['Core','🎯'],['Cardio','❤️'],['Calisthenics','🤸'],['Travel','✈️']];
+function nextWorkout(){
+  const seq = planSeq(), st = programState();
+  if (st && !st.finished) return {w:st.next, label:`${esc(st.P.n)} · week ${st.week + 1} · ${st.phase.n}`};
+  return {w:wById(seq[S.settings.pos % seq.length]), label:`Your plan · day ${S.settings.pos % seq.length + 1} of ${seq.length}`};
+}
 const VIEWS = {
   coach(){ if (!UI.chat) chatStart(); return chatView(); },
-  train(){
-    const seq = planSeq(), st = programState(), g = S.profile && GOALS[S.profile.goal];
-    const next = st && !st.finished ? st.next : wById(seq[S.settings.pos % seq.length]);
-    if (!UI.group) {
-      const groups = S.workouts.length ? [...GROUPS, ['Mine','⭐']] : GROUPS;
-      return `<div class="row"><h1 class="sp">What are we <em>training?</em></h1><button class="ib" data-a="settings">⚙️</button></div>
-        ${checkinDue() ? `<button class="card hero tap wcard" data-a="checkin"><span style="font-size:26px">🗓️</span><div class="sp" style="text-align:left"><div class="tag">Coach check-in due</div><div style="font-weight:800;margin-top:2px">2 minutes: review the last 2 weeks and fine-tune your plan</div></div><span class="chev">›</span></button>` : ''}
-        ${deloadActive() ? `<div class="hint" style="margin-bottom:12px">🧘 <b>Deload week</b> until ${fmtDate(S.deloadUntil)}: half the sets, same weights. Recover and come back stronger.</div>` : ''}
-        ${st?.finished ? `<div class="hint" style="margin-bottom:12px">🏆 You finished <b>${esc(st.P.n)}</b>! Pick your next program or go back to your plan. <button class="btn s" data-a="progstop">Back to my plan</button></div>` : ''}
-        ${g ? `<button class="coachchip" data-a="coach">${g.ic} <b>${g.n}</b><span class="mut"> · ${S.profile.days}×/week · your plan</span><span class="sp"></span>›</button>` : ''}
-        ${next ? `<button class="card hero tap wcard" data-a="preview" data-id="${next.id}"><div class="sp" style="text-align:left"><div class="tag">${st && !st.finished ? `${st.P.ic} Week ${st.week + 1}/${st.P.weeks} · ${st.phase.n} · day ${st.day + 1}` : `Up next · day ${S.settings.pos % seq.length + 1} of ${seq.length}`}</div>
-          <div style="font-weight:900;font-size:20px;margin-top:4px">${esc(next.n)}</div></div><span class="go">▶</span></button>` : ''}
-        <div class="grid">${groups.map(([g, i]) => `<button class="tile" data-a="group" data-v="${g}"><span class="ti">${i}</span>${g}</button>`).join('')}</div>
-        <button class="coachchip" style="margin-top:12px" data-a="programs">📅 <b>Programs</b><span class="mut"> · 4–12 week plans</span><span class="sp"></span>›</button>
-        <button class="btn wide ghost" style="margin-top:4px" data-a="newworkout">＋ Build your own workout</button>`;
-    }
-    const list = UI.group === 'Mine' ? S.workouts : allWorkouts().filter(w => w.cat === UI.group);
-    return `<button class="back" data-a="group" data-v="">‹ Back</button>
-      <h1>${esc(UI.group)}</h1>
-      ${UI.group !== 'Mine' && TEMPLATES[UI.group] ? (() => { const eq = UI.equip?.[UI.group] || defaultEquip(UI.group); return `<div class="card hero">
-        <div class="tag">Fresh workout, never the same twice</div>
-        <div class="chips" style="margin:10px -16px 10px">${Object.entries(EQUIP).filter(([k]) => equipFor(UI.group).includes(k)).map(([k, v]) => `<button class="chip ${eq === k ? 'on' : ''}" data-a="equip" data-v="${k}">${v.n}</button>`).join('')}</div>
-        ${!['Cardio','Core'].includes(UI.group) ? `<div class="chips" style="margin:0 -16px 10px">${Object.entries(FORMATS).map(([k, v]) => `<button class="chip ${(UI.format || 'classic') === k ? 'on' : ''}" data-a="format" data-v="${k}">${v.n}</button>`).join('')}</div>` : ''}
-        <button class="btn pri wide" data-a="gen">⚡ Generate a ${esc(UI.group)} workout</button></div>`; })() : ''}
-      <div class="tag" style="margin-bottom:8px">How long have you got?</div>
-      <div class="chips">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[0,'Any']].map(([m, l]) => `<button class="chip ${UI.tmins === m ? 'on' : ''}" data-a="tmins" data-v="${m}">${l}</button>`).join('')}</div>
-      ${list.map(wCard).join('') || `<div class="empty"><div class="big">🧱</div>No workouts here yet.</div>`}`;
+  today(){
+    const {w:next, label} = nextWorkout(), st = programState(), g = S.profile && GOALS[S.profile.goal], seq = st && !st.finished ? st.P.days : planSeq();
+    const hr = new Date().getHours(), hi = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+    const monday = new Date(); monday.setHours(0, 0, 0, 0); monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
+    const doneIds = S.history.filter(h => h.start >= monday).map(h => h.src);
+    const alerts = [
+      checkinDue() && lrow({a:'checkin', ic:'🗓️', tint:'rgba(198,255,0,.15)', title:'Coach check-in due', sub:'2 minutes to fine-tune your plan'}),
+      deloadActive() && lrow({a:'coach', ic:'🧘', title:'Deload week', sub:`Half the sets until ${fmtDate(S.deloadUntil)}`}),
+      st?.finished && lrow({a:'progstop', ic:'🏆', title:`${esc(st.P.n)} complete`, sub:'Tap to go back to your plan'}),
+    ].filter(Boolean);
+    return `<div class="row topbar"><div class="sp"><div class="mut sm">${new Date().toLocaleDateString(undefined, {weekday:'long', day:'numeric', month:'long'})}</div><h1 style="margin:2px 0 0">${hi}</h1></div>
+        <button class="avatar" data-a="settings" aria-label="Settings">${esc((SESSION?.email || 'R')[0].toUpperCase())}</button></div>
+      ${next ? `<div class="hero2"><div class="tag">Up next</div><div class="h2t">${esc(next.n)}</div><div class="sm mut">${label}</div>
+        <div class="sm" style="margin:10px 0 16px">⏱ ~${estMin(next.ex)} min · ${next.ex.length} exercises</div>
+        <button class="btn pri wide" data-a="startnext" data-id="${next.id}">Start workout</button>
+        <div class="row" style="margin-top:8px"><button class="btn ghost sp s" data-a="preview" data-id="${next.id}">Preview</button><button class="btn ghost sp s" data-a="skipday">Skip</button></div></div>` : ''}
+      <div class="qas">${qa('gotab', '⚡', 'Generate')}${qa('chat', '💬', 'Ask coach')}${qa('addbody', '⚖️', 'Weigh in')}${qa('checkin', '🗓️', 'Check-in', checkinDue())}</div>
+      ${listGroup('For you', alerts)}
+      ${listGroup('This week', seq.map((id, i) => { const w = wById(id); if (!w) return ''; const done = doneIds.includes(id);
+        return lrow({a:'preview', id, ic:done ? '✓' : i + 1, tint:done ? 'var(--acc)' : '', title:esc(w.n), sub:done ? 'Done this week' : `${w.cat} · ~${estMin(w.ex)} min`}); }).filter(Boolean))}
+      ${g ? listGroup('Your goal', [lrow({a:'coach', ic:g.ic, title:g.n, sub:`${S.profile.days}× a week · calories, protein & plan`})]) : ''}`;
   },
-  skills(){
-    return `<h1>Skill <em>tree</em></h1>
-      <p class="mut" style="margin-top:-8px">Everything starts at zero. Hit the target in a session and you can level up. 📌 Pinned skills get added to every Calisthenics workout.</p>
-      ${S.pinned.length ? `<button class="btn pri wide" style="margin-bottom:14px" data-a="skillsession">Train pinned skills ▶</button>` : ''}
-      ${SKILLS.map(sk => {
-        const lv = S.skills[sk.id] || 0, n = sk.steps.length, st = sk.steps[Math.min(lv, n - 1)];
-        return `<div class="card tap" data-a="skill" data-id="${sk.id}">
-          <div class="row"><span style="font-size:28px">${sk.ic}</span><div class="sp"><h3>${sk.n}</h3>
-          <div class="sm mut">${lv >= n ? '🏆 Mastered' : `Step ${lv + 1}/${n}: <span style="color:var(--txt)">${esc(st[0])}</span> · ${esc(st[2])}`}</div></div>
-          ${S.pinned.includes(sk.id) ? '<span class="pill a">📌</span>' : ''}</div>
-          <div class="bar"><i style="width:${Math.round(lv / n * 100)}%"></i></div></div>`;
-      }).join('')}`;
+  workouts(){
+    const groups = S.workouts.length ? [...GROUPS, ['Mine','⭐']] : GROUPS;
+    return `<h1>Workouts</h1>
+      <div class="tiles3">${groups.map(([g, i]) => `<button class="tile" data-a="group" data-v="${g}"><span class="ti">${i}</span>${g}</button>`).join('')}</div>
+      ${listGroup('', [lrow({a:'newworkout', ic:'＋', title:'Build your own', sub:'Pick exercises, sets and reps'})])}`;
+  },
+  programs(){
+    const st = programState();
+    return `<h1>Programs</h1><p class="mut" style="margin-top:-8px">Structured multi-week plans that progress for you.</p>
+      ${st && !st.finished ? `<div class="hero2"><div class="tag">Your program · week ${st.week + 1} of ${st.P.weeks}</div><div class="h2t">${st.P.ic} ${esc(st.P.n)}</div>
+        <div class="bar"><i style="width:${st.pct}%"></i></div><div class="sm mut" style="margin:8px 0 14px">${st.phase.n} week · next: ${esc(st.next?.n || '')}</div>
+        <button class="btn pri wide" data-a="progpage" data-id="${st.P.id}">View program</button></div>` : ''}
+      ${listGroup('Training programs', PROGRAMS.map(P => lrow({a:'progpage', id:P.id, ic:P.ic, title:esc(P.n), sub:`${P.weeks} weeks · ${P.days.length} days a week${S.program?.id === P.id ? ' · active' : ''}`})))}
+      ${listGroup('Skill paths', SKILLS.map(sk => { const lv = S.skills[sk.id] || 0, n = sk.steps.length;
+        return lrow({a:'skill', id:sk.id, ic:sk.ic, title:sk.n + (S.pinned.includes(sk.id) ? ' 📌' : ''), sub:lv >= n ? 'Mastered 🏆' : `Step ${lv + 1} of ${n} · ${esc(sk.steps[lv][0])}`, right:`<span class="ring" style="--p:${Math.round(lv / n * 100)}"></span>`}); }))}
+      ${S.pinned.length ? `<button class="btn wide" style="margin-top:12px" data-a="skillsession">Train pinned skills ▶</button>` : ''}`;
   },
   history(){
     const now = new Date(), monday = new Date(now); monday.setHours(0,0,0,0); monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
@@ -173,7 +179,7 @@ const VIEWS = {
     const cal = []; const start = new Date(monday - 21 * 864e5);
     for (let i = 0; i < 28; i++) { const d = new Date(start.getTime() + i * 864e5); cal.push(`<div class="${days.has(d.toDateString()) ? 'on' : ''} ${d.toDateString() === now.toDateString() ? 'today' : ''}"></div>`); }
     const logged = [...new Set(S.history.flatMap(h => h.ex.map(e => e.id)))];
-    return `<div class="row"><h1>Your <em>progress</em></h1><span class="sp"></span><button class="ib" data-a="settings">⚙️</button></div>
+    return `<h1>Progress</h1>
       <div class="row"><div class="stat"><b>${thisWeek}</b><span class="sm mut">this week</span></div><div class="stat"><b>${streak}</b><span class="sm mut">week streak</span></div><div class="stat"><b>${S.history.length}</b><span class="sm mut">workouts</span></div></div>
       ${S.profile ? bodySection() : ''}
       <div class="card" style="margin-top:12px"><div class="row sm mut"><span>Last 4 weeks</span><span class="sp"></span><span>M T W T F S S</span></div><div class="cal">${cal.join('')}</div></div>
@@ -416,11 +422,35 @@ function pickList(){
   return list.slice(0, 60).map(e => `<div class="exl" data-a="pickex" data-id="${e.id}" style="cursor:pointer"><div class="sp"><b>${esc(e.n)}</b><div class="sm mut">${esc(PATTERNS[e.p] || '')} · ${esc(e.m || '')}</div></div><span class="acc" style="font-size:22px">＋</span></div>`).join('') || '<div class="mut sm">No match. Create it below 👇</div>';
 }
 
+// ---------- pages (slide in with a back button, like Revolut) ----------
+const PAGES = {
+  group: () => { const g = UI.group, list = g === 'Mine' ? S.workouts : allWorkouts().filter(w => w.cat === g), eq = UI.equip?.[g] || defaultEquip(g);
+    return [esc(g), `${g !== 'Mine' && TEMPLATES[g] ? `<div class="hero2"><div class="tag">Generate</div><div class="sm mut" style="margin:4px 0 12px">A fresh ${esc(g.toLowerCase())} session built for your goal. Never the same twice.</div>
+        <div class="seg">${Object.entries(EQUIP).filter(([k]) => equipFor(g).includes(k)).map(([k, v]) => `<button class="${eq === k ? 'on' : ''}" data-a="equip" data-v="${k}">${v.n}</button>`).join('')}</div>
+        ${!['Cardio','Core'].includes(g) ? `<div class="chips" style="margin:10px -20px 12px;padding:0 20px">${Object.entries(FORMATS).map(([k, v]) => `<button class="chip ${(UI.format || 'classic') === k ? 'on' : ''}" data-a="format" data-v="${k}">${v.n}</button>`).join('')}</div>` : '<div style="height:12px"></div>'}
+        <button class="btn pri wide" data-a="gen">Generate workout</button></div>` : ''}
+      <h2>Ready-made · how long have you got?</h2>
+      <div class="seg">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[0,'Any']].map(([m, l]) => `<button class="${UI.tmins === m ? 'on' : ''}" data-a="tmins" data-v="${m}">${l}</button>`).join('')}</div>
+      ${list.length ? `<div class="group" style="margin-top:12px">${list.map(wCard).join('')}</div>` : `<div class="empty">No workouts here yet.</div>`}`]; },
+  prog: p => { const P = progById(p.id), active = S.program?.id === P.id, st = active ? programState() : null, ph = PHASES[P.phase];
+    return [P.n, `<div class="hero2" style="text-align:center"><div style="font-size:44px">${P.ic}</div><div class="h2t">${esc(P.n)}</div><div class="sm mut" style="margin-top:6px">${esc(P.d)}</div>
+        <div class="stats3"><div><b>${P.weeks}</b><span>weeks</span></div><div><b>${P.days.length}</b><span>days / week</span></div><div><b>${P.weeks * P.days.length}</b><span>sessions</span></div></div>
+        ${st && !st.finished ? `<div class="bar"><i style="width:${st.pct}%"></i></div><div class="sm mut" style="margin-top:6px">Week ${st.week + 1} · ${st.phase.n} · ${st.pct}% done</div>` : ''}</div>
+      ${listGroup('How it progresses', ph.map((x, i) => lrow({a:'noop', ic:i + 1, tint:x.deload ? '' : 'rgba(198,255,0,.15)', title:`${(w => (w.length > 1 ? 'Weeks ' : 'Week ') + w.join(', '))([i + 1, i + 5, i + 9].filter(n => n <= P.weeks))}: ${x.n}`, sub:esc(x.note), right:''})))}
+      ${listGroup('Your training week', P.days.map((id, i) => { const w = wById(id); return w ? lrow({a:'preview', id, ic:GROUPS.find(g => g[0] === w.cat)?.[1] || '🏋️', title:`Day ${i + 1}: ${esc(w.n)}`, sub:`${w.cat} · ~${estMin(w.ex)} min · ${w.ex.length} exercises`}) : ''; }))}
+      <div class="sm mut" style="margin:12px 4px">Rest or walk between sessions. Weights and sets adjust automatically each week. Do the days in order.</div>
+      ${active ? `<button class="btn wide danger" data-a="progstop">Stop program</button>` : `<button class="btn pri wide" data-a="progstart" data-id="${P.id}">Start this program</button>`}`]; },
+  skill: () => { const sk = SKILLS.find(s => s.id === UI.skill); return [sk.n, MODALS.skill().replace(/^<h3>.*?<\/h3>/, '')]; },
+  plan: () => ['Your plan', coachView().replace(/^<div class="tag">Your coach plan<\/div><h3>.*?<\/h3>/, '')],
+  settings: () => ['Settings', MODALS.settings().replace(/^<h3>Settings<\/h3>/, '')],
+};
+const pushPage = (t, extra = {}) => { UI.stack = [...(UI.stack || []), {t, ...extra}]; UI.modal = null; render(); };
+
 // ---------- render ----------
 function render(){
-  const aw = $('#overlay .aw')?.scrollTop, sh = $('#modal .sheet')?.scrollTop, key = UI.tab + '|' + UI.group, main = key === render.key ? $('#scroller')?.scrollTop : 0;
+  const top = UI.stack?.[UI.stack.length - 1], aw = $('#overlay .aw')?.scrollTop, sh = $('#modal .sheet')?.scrollTop, key = UI.tab + '|' + JSON.stringify(top || ''), main = key === render.key ? $('#scroller')?.scrollTop : 0;
   render.key = key;
-  $('#app').innerHTML = cloudOn() && !SESSION ? `<div class="scroll" id="scroller"><main class="view">${loginView()}</main></div>` : S.profile && !UI.editing ? `<div class="scroll" id="scroller"><main class="view">${VIEWS[UI.tab]()}</main></div>${resumeBar()}${tabbar()}` : `<div class="scroll" id="scroller"><main class="view">${onboarding()}</main></div>`;
+  $('#app').innerHTML = cloudOn() && !SESSION ? `<div class="scroll" id="scroller"><main class="view">${loginView()}</main></div>` : S.profile && !UI.editing ? `<div class="scroll" id="scroller"><main class="view ${top ? 'page' : ''}">${top ? (([t, body]) => `<div class="phead"><button class="pback" data-a="back" aria-label="Back">‹</button><b>${esc(t)}</b><span></span></div>${body}`)(PAGES[top.t](top)) : VIEWS[UI.tab]()}</main></div>${resumeBar()}${tabbar()}` : `<div class="scroll" id="scroller"><main class="view">${onboarding()}</main></div>`;
   if (main) $('#scroller').scrollTop = main;
   $('#overlay').innerHTML = S.active && UI.showActive ? activeView() : '';
   $('#modal').innerHTML = UI.modal ? `<div class="bg" data-a="bgclose"><div class="sheet"><div class="sheethead"><div class="grab"></div><button class="x" data-a="close" aria-label="Close">✕</button></div>${MODALS[UI.modal]()}</div></div>` : '';
@@ -443,8 +473,13 @@ function openPicker(mode, from){ UI.pick = {mode, from}; UI.q = ''; open('picker
 
 // ---------- actions ----------
 const A = {
-  tab: el => { UI.tab = el.dataset.v; if (el.dataset.v === 'train') UI.group = ''; render(); },
-  group: el => { UI.group = el.dataset.v; render(); },
+  tab: el => { UI.tab = el.dataset.v; UI.stack = []; render(); },
+  gotab: () => { UI.tab = 'workouts'; UI.stack = []; render(); },
+  back: () => { UI.stack = (UI.stack || []).slice(0, -1); render(); },
+  noop: () => {},
+  startnext: el => { openPreview(wById(el.dataset.id)); A.start(); },
+  progpage: el => pushPage('prog', {id:el.dataset.id}),
+  group: el => { UI.group = el.dataset.v; pushPage('group', {g:el.dataset.v}); },
   equip: el => { UI.equip = {...(UI.equip || {}), [UI.group]:el.dataset.v}; render(); },
   swapeq: el => { const e = S.active.ex[+el.dataset.i]; e.id = el.dataset.v; save(); render(); toast('Swapped to ' + exById(el.dataset.v).n); },
   pswapeq: el => { UI.P.list[+el.dataset.i][0] = el.dataset.v; render(); toast('Swapped to ' + exById(el.dataset.v).n); },
@@ -526,7 +561,7 @@ const A = {
   discard: () => { if (confirm('Discard this workout? Nothing will be saved.')) { S.active = null; REST = null; save(); render(); } },
   levelup: el => { const id = el.dataset.id; S.skills[id] = (S.skills[id] || 0) + 1; save(); toast('⬆ Level up!'); el.closest('.card').remove(); },
   // skills
-  skill: el => { UI.skill = el.dataset.id; open('skill'); },
+  skill: el => { UI.skill = el.dataset.id; pushPage('skill'); },
   trainskill: () => {
     const entry = skillEntry(UI.skill);
     if (S.active) { S.active.ex.push(mkEx(...entry)); save(); UI.modal = null; UI.showActive = true; render(); toast('Added to workout'); }
@@ -541,12 +576,12 @@ const A = {
   redo: () => { const h = S.history.find(x => x.id === UI.hid); startWorkout({id:h.src, n:h.name, cat:''}, h.ex.map(e => [e.id, e.sets.length, e.reps || e.sets[0].r, exById(e.id).t === 'w' ? 120 : 90])); },
   form: el => { UI.formBack = UI.modal && UI.modal !== 'form' ? UI.modal : null; UI.form = el.dataset.id; open('form'); },
   formback: () => { const b = UI.formBack; UI.formBack = null; b ? open(b) : close(); },
-  coach: () => open('coach'),
+  coach: () => pushPage('plan'),
   chat: () => { UI.tab = 'coach'; UI.modal = null; render(); },
   chatnew: () => { chatStart(); render(); },
   chatq: el => { const k = el.dataset.k; if (k.startsWith('ai:')) chatInput(k.slice(3)); else chatInput(el.textContent, k); render(); },
   chatsend: () => { const i = $('#chatin'); const t = i.value; i.value = ''; chatInput(t); render(); $('#chatin')?.focus(); },
-  programs: () => open('programs'),
+  programs: () => { UI.tab = 'programs'; UI.stack = []; UI.modal = null; render(); },
   progstart: el => { if (S.program && !confirm('Replace your current program?')) return; S.program = {id:el.dataset.id, start:Date.now(), done:0}; save(); close(); toast('Program started 💪'); },
   progstop: () => { if (!confirm('Stop this program and go back to your coach plan?')) return; S.program = null; save(); close(); },
   checkin: () => { UI.ci = {}; open('checkin'); },
@@ -561,7 +596,7 @@ const A = {
     el.disabled = true; el.textContent = 'One moment…';
     try {
       await (UI.signup ? signUp(email, pw) : signIn(email, pw));
-      await syncOnOpen(); UI.tab = 'train'; UI.group = ''; render(); toast(S.profile ? 'Welcome back 💪' : 'Account ready ✓');
+      await syncOnOpen(); UI.tab = 'today'; UI.stack = []; render(); toast(S.profile ? 'Welcome back 💪' : 'Account ready ✓');
     } catch(e) { toast(e.message.includes('Invalid login') ? 'Wrong email or password' : e.message); el.disabled = false; el.textContent = UI.signup ? 'Create account' : 'Log in'; }
   },
   syncnow: async () => { toast('Syncing…'); const ok = await push(); toast(ok ? 'Backed up ✓' : 'Offline. Will sync later'); render(); },
@@ -579,7 +614,7 @@ const A = {
     if (UI.ob >= 4) return finishOnboarding();
     UI.ob++; render(); $('#scroller').scrollTop = 0;
   },
-  editprofile: () => { UI.obd = {...S.profile, ...(latestBody() || {}), kg:(latestBody() || {}).kg || S.profile.kg}; UI.ob = 0; UI.editing = true; UI.modal = null; render(); },
+  editprofile: () => { UI.stack = []; UI.obd = {...S.profile, ...(latestBody() || {}), kg:(latestBody() || {}).kg || S.profile.kg}; UI.ob = 0; UI.editing = true; UI.modal = null; render(); },
   addbody: () => open('body'),
   savebody: () => {
     const v = id => +($(id).value || '').replace(',', '.') || 0, e = {t:Date.now(), kg:v('#b_kg'), bf:v('#b_bf'), smm:v('#b_smm'), waist:v('#b_waist')};
@@ -588,7 +623,7 @@ const A = {
   },
   delbody: el => { S.body = S.body.filter(b => b.t !== +el.dataset.t); save(); render(); },
   prog: el => { UI.prog = el.dataset.id; open('prog'); },
-  settings: () => open('settings'),
+  settings: () => pushPage('settings'),
   export: async () => {
     const blob = new Blob([JSON.stringify(S)], {type:'application/json'}), name = `replab-backup-${new Date().toISOString().slice(0, 10)}.json`;
     const file = new File([blob], name, {type:'application/json'});
@@ -630,7 +665,7 @@ function goBack(){
   if (UI.modal === 'form' && UI.formBack) return A.formback();
   if (UI.modal) return close();
   if (S.active && UI.showActive) { UI.showActive = false; return render(); }
-  if (UI.tab === 'train' && UI.group) { UI.group = ''; return render(); }
+  if (UI.stack?.length) return A.back();
 }
 let G = null;
 document.addEventListener('touchstart', e => {

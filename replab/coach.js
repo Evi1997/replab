@@ -136,7 +136,7 @@ function finishOnboarding(){
   const today = new Date().toDateString(), entry = {t:Date.now(), kg:num(d.kg), bf:num(d.bf), smm:num(d.smm), waist:num(d.waist)};
   const i = S.body.findIndex(b => new Date(b.t).toDateString() === today); if (i >= 0) S.body[i] = entry; else S.body.push(entry);
   S.settings.split = 'coach'; S.settings.pos = 0; UI.tmins = S.profile.mins === 75 ? 0 : S.profile.mins;
-  UI.editing = false; save(); UI.modal = 'coach'; render();
+  UI.editing = false; save(); UI.tab = 'today'; UI.stack = [{t:'plan'}]; render();
 }
 
 // ---------- coach screen ----------
