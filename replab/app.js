@@ -15,10 +15,10 @@ function load(){
   return defaults();
 }
 let S = load();
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) { toast('⚠️ Could not save'); } }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) { toast('⚠️ Could not save on this phone'); } queuePush(); }
 if (navigator.storage?.persist) navigator.storage.persist();
 
-const UI = {tab:'train', group:'', tmins:0, ob:0, obd:{}, editing:false, modal:null, showActive:true, q:'', pick:null, P:null, E:null, hid:null, prog:null, skill:null, summary:null, menu:null};
+const UI = {signup:false, tab:'train', group:'', tmins:0, ob:0, obd:{}, editing:false, modal:null, showActive:true, q:'', pick:null, P:null, E:null, hid:null, prog:null, skill:null, summary:null, menu:null};
 
 // ---------- helpers ----------
 function exById(id){
@@ -397,6 +397,7 @@ const MODALS = {
       <button class="btn wide" data-a="editprofile">✏️ Goal, body & training details</button>
       <h2>TikTok / Instagram import helper</h2><p class="sm mut">Optional. Paste your Cloudflare helper link to auto-read short TikTok links and Instagram captions.</p>
       <input data-set="helper" value="${esc(st.helper || '')}" placeholder="https://replab-import.yourname.workers.dev">
+      ${accountSection()}
       <h2>Backup</h2><p class="sm mut">Your data lives only on this phone. Export a backup now and then (e.g. save to Files or AirDrop it to your Mac).</p>
       <button class="btn wide" data-a="export">⬇ Export backup</button>
       <label class="btn wide" style="margin-top:8px">⬆ Import backup<input type="file" accept="application/json,.json" id="imp" hidden></label>
@@ -469,7 +470,7 @@ function pickList(){
 function render(){
   const aw = $('#overlay .aw')?.scrollTop, sh = $('#modal .sheet')?.scrollTop, key = UI.tab + '|' + UI.group, main = key === render.key ? $('#scroller')?.scrollTop : 0;
   render.key = key;
-  $('#app').innerHTML = S.profile && !UI.editing ? `<div class="scroll" id="scroller"><main class="view">${VIEWS[UI.tab]()}</main></div>${resumeBar()}${tabbar()}` : `<div class="scroll" id="scroller"><main class="view">${onboarding()}</main></div>`;
+  $('#app').innerHTML = cloudOn() && !SESSION ? `<div class="scroll" id="scroller"><main class="view">${loginView()}</main></div>` : S.profile && !UI.editing ? `<div class="scroll" id="scroller"><main class="view">${VIEWS[UI.tab]()}</main></div>${resumeBar()}${tabbar()}` : `<div class="scroll" id="scroller"><main class="view">${onboarding()}</main></div>`;
   if (main) $('#scroller').scrollTop = main;
   $('#overlay').innerHTML = S.active && UI.showActive ? activeView() : '';
   $('#modal').innerHTML = UI.modal ? `<div class="bg" data-a="bgclose"><div class="sheet"><div class="sheethead"><div class="grab"></div><button class="x" data-a="close" aria-label="Close">✕</button></div>${MODALS[UI.modal]()}</div></div>` : '';
@@ -582,6 +583,22 @@ const A = {
   form: el => { UI.formBack = UI.modal && UI.modal !== 'form' ? UI.modal : null; UI.form = el.dataset.id; open('form'); },
   formback: () => { const b = UI.formBack; UI.formBack = null; b ? open(b) : close(); },
   coach: () => open('coach'),
+  togsignup: () => { UI.signup = !UI.signup; render(); },
+  login: async el => {
+    const email = $('#l_em').value.trim(), pw = $('#l_pw').value;
+    if (!/^\S+@\S+\.\S+$/.test(email) || pw.length < 6) return toast('Enter your email and a 6+ character password');
+    el.disabled = true; el.textContent = 'One moment…';
+    try {
+      await (UI.signup ? signUp(email, pw) : signIn(email, pw));
+      await syncOnOpen(); UI.tab = 'train'; UI.group = ''; render(); toast(S.profile ? 'Welcome back 💪' : 'Account ready ✓');
+    } catch(e) { toast(e.message.includes('Invalid login') ? 'Wrong email or password' : e.message); el.disabled = false; el.textContent = UI.signup ? 'Create account' : 'Log in'; }
+  },
+  syncnow: async () => { toast('Syncing…'); const ok = await push(); toast(ok ? 'Backed up ✓' : 'Offline. Will sync later'); render(); },
+  logout: async () => {
+    if (!confirm('Log out? Your data stays safe in your account.')) return;
+    await push(); setSession(null); try { localStorage.removeItem(KEY); } catch(e) {}
+    S = defaults(); UI.modal = null; render();
+  },
   obset: el => { UI.obd[el.dataset.k] = el.dataset.v; render(); },
   obback: () => { UI.ob = Math.max(0, UI.ob - 1); render(); },
   obnext: () => {
@@ -665,4 +682,5 @@ document.addEventListener('touchend', e => {
 document.addEventListener('focusout', () => setTimeout(() => window.scrollTo(0, 0), 50));
 
 render();
+syncOnOpen();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
