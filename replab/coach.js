@@ -58,7 +58,7 @@ function coachNumbers(){
   const bmr = lbm ? 370 + 21.6 * lbm : 10 * kg + 6.25 * p.cm - 5 * p.age + (p.sex === 'm' ? 5 : -161);
   const tdee = bmr * ({2:1.4, 3:1.45, 4:1.55, 5:1.6, 6:1.7}[p.days] || 1.55);
   let adj = g.kcal; if (bmi < 18.5 && adj < 0) adj = 0;
-  const kcal = Math.round(tdee * (1 + adj) / 50) * 50;
+  const kcal = Math.round((tdee * (1 + adj) + (p.kcalAdj || 0)) / 50) * 50;
   const protKg = bmi > 30 && !lbm ? 25 * h * h : kg;
   const protein = Math.round(protKg * g.prot / 5) * 5, fat = Math.round(kcal * 0.27 / 9 / 5) * 5;
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4 / 5) * 5);
@@ -130,7 +130,8 @@ function onboarding(){
 }
 function finishOnboarding(){
   const d = UI.obd, num = v => +String(v || '').replace(',', '.') || 0;
-  S.profile = {goal:d.goal, focus:d.focus, sex:d.sex, age:num(d.age), cm:num(d.cm), kg:num(d.kg), level:d.level, days:+d.days, mins:+d.mins};
+  const prev = S.profile || {};
+  S.profile = {goal:d.goal, focus:d.focus, sex:d.sex, age:num(d.age), cm:num(d.cm), kg:num(d.kg), level:d.level, days:+d.days, mins:+d.mins, since:prev.since || Date.now(), kcalAdj:prev.goal === d.goal ? prev.kcalAdj || 0 : 0};
   S.body = S.body || [];
   const today = new Date().toDateString(), entry = {t:Date.now(), kg:num(d.kg), bf:num(d.bf), smm:num(d.smm), waist:num(d.waist)};
   const i = S.body.findIndex(b => new Date(b.t).toDateString() === today); if (i >= 0) S.body[i] = entry; else S.body.push(entry);
@@ -149,6 +150,7 @@ function coachView(){
     <h2>Daily targets</h2>
     <div class="row"><div class="stat"><b>${n.kcal}</b><span class="sm mut">kcal / day</span></div><div class="stat"><b>${n.protein}g</b><span class="sm mut">protein</span></div></div>
     <div class="row" style="margin-top:10px"><div class="stat"><b>${n.carbs}g</b><span class="sm mut">carbs</span></div><div class="stat"><b>${n.fat}g</b><span class="sm mut">fat</span></div><div class="stat"><b>${(g.steps / 1000).toFixed(0)}k</b><span class="sm mut">steps</span></div></div>
+    ${p.kcalAdj ? `<div class="sm acc" style="margin-top:8px">Includes your check-in adjustment: ${p.kcalAdj > 0 ? '+' : ''}${p.kcalAdj} kcal</div>` : ''}
     <div class="sm mut" style="margin-top:8px">Maintenance ≈ ${n.tdee} kcal${n.lbm ? ' (calculated from your lean mass)' : ''}. Water ≈ ${n.water} L/day. Sleep 7–9 h.</div>
     <h2>Your body</h2>
     <div class="card"><div class="row"><span class="sp">BMI</span><b>${n.bmi.toFixed(1)}</b><span class="pill">${bmiLabel(n.bmi)}</span></div>
@@ -169,7 +171,8 @@ function coachView(){
     <h2>Coach's notes</h2>
     <ol class="howto">${[...COACH_TIPS[p.goal], LEVEL_TIPS[p.level]].map(t => `<li>${t}</li>`).join('')}</ol>
     <p class="sm mut">General fitness guidance, not medical advice. If you have an injury, condition or are pregnant, check with a doctor or physio first.</p>
-    <button class="btn wide" style="margin-top:6px" data-a="editprofile">✏️ Change goal or details</button>`;
+    <div class="row" style="margin-top:6px"><button class="btn sp" data-a="checkin">🗓️ Check-in</button><button class="btn sp" data-a="programs">📅 Programs</button></div>
+    <button class="btn wide" style="margin-top:8px" data-a="editprofile">✏️ Change goal or details</button>`;
 }
 
 // ---------- body assessments ----------

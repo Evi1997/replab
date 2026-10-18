@@ -124,15 +124,20 @@ function wCard(w){
 const GROUPS = [['Legs','🦵'],['Glutes','🍑'],['Push','🏋️'],['Pull','🧗'],['Upper','💪'],['Arms','🦾'],['Full Body','🔥'],['Core','🎯'],['Cardio','❤️'],['Calisthenics','🤸'],['Travel','✈️']];
 const VIEWS = {
   train(){
-    const seq = planSeq(), next = wById(seq[S.settings.pos % seq.length]), g = S.profile && GOALS[S.profile.goal];
+    const seq = planSeq(), st = programState(), g = S.profile && GOALS[S.profile.goal];
+    const next = st && !st.finished ? st.next : wById(seq[S.settings.pos % seq.length]);
     if (!UI.group) {
       const groups = S.workouts.length ? [...GROUPS, ['Mine','⭐']] : GROUPS;
       return `<div class="row"><h1 class="sp">What are we <em>training?</em></h1><button class="ib" data-a="settings">⚙️</button></div>
+        ${checkinDue() ? `<button class="card hero tap wcard" data-a="checkin"><span style="font-size:26px">🗓️</span><div class="sp" style="text-align:left"><div class="tag">Coach check-in due</div><div style="font-weight:800;margin-top:2px">2 minutes: review the last 2 weeks and fine-tune your plan</div></div><span class="chev">›</span></button>` : ''}
+        ${deloadActive() ? `<div class="hint" style="margin-bottom:12px">🧘 <b>Deload week</b> until ${fmtDate(S.deloadUntil)}: half the sets, same weights. Recover and come back stronger.</div>` : ''}
+        ${st?.finished ? `<div class="hint" style="margin-bottom:12px">🏆 You finished <b>${esc(st.P.n)}</b>! Pick your next program or go back to your plan. <button class="btn s" data-a="progstop">Back to my plan</button></div>` : ''}
         ${g ? `<button class="coachchip" data-a="coach">${g.ic} <b>${g.n}</b><span class="mut"> · ${S.profile.days}×/week · your plan</span><span class="sp"></span>›</button>` : ''}
-        ${next ? `<button class="card hero tap wcard" data-a="preview" data-id="${next.id}"><div class="sp" style="text-align:left"><div class="tag">Up next · day ${S.settings.pos % seq.length + 1} of ${seq.length}</div>
+        ${next ? `<button class="card hero tap wcard" data-a="preview" data-id="${next.id}"><div class="sp" style="text-align:left"><div class="tag">${st && !st.finished ? `${st.P.ic} Week ${st.week + 1}/${st.P.weeks} · ${st.phase.n} · day ${st.day + 1}` : `Up next · day ${S.settings.pos % seq.length + 1} of ${seq.length}`}</div>
           <div style="font-weight:900;font-size:20px;margin-top:4px">${esc(next.n)}</div></div><span class="go">▶</span></button>` : ''}
         <div class="grid">${groups.map(([g, i]) => `<button class="tile" data-a="group" data-v="${g}"><span class="ti">${i}</span>${g}</button>`).join('')}</div>
-        <button class="btn wide ghost" style="margin-top:10px" data-a="newworkout">＋ Build your own workout</button>`;
+        <button class="coachchip" style="margin-top:12px" data-a="programs">📅 <b>Programs</b><span class="mut"> · 4–12 week plans</span><span class="sp"></span>›</button>
+        <button class="btn wide ghost" style="margin-top:4px" data-a="newworkout">＋ Build your own workout</button>`;
     }
     const list = UI.group === 'Mine' ? S.workouts : allWorkouts().filter(w => w.cat === UI.group);
     return `<button class="back" data-a="group" data-v="">‹ Back</button>
@@ -280,8 +285,9 @@ function finish(){
   }
   const h = {id:A.id, name:A.name, src:A.src, start:A.start, end:Date.now(), ex, vol, prs};
   S.history.push(h);
-  const sp = SPLITS[S.settings.split];
-  if (A.src === sp.seq[S.settings.pos % sp.seq.length]) S.settings.pos++;
+  const st = programState(), seq = planSeq();
+  if (st && !st.finished && A.src === st.next?.id) S.program.done = (S.program.done || 0) + 1;
+  else if (A.src === seq[S.settings.pos % seq.length]) S.settings.pos++;
   S.active = null; REST = null; save();
   UI.summary = {h, levelUps}; UI.modal = 'summary'; render();
 }
@@ -299,6 +305,7 @@ const MODALS = {
         <div class="sm mut">${s} × ${esc(r)} · rest ${fmtT(rest)}</div>${swapRow(id, 'pswapeq', i, list.map(y => y[0]))}</div>${alt ? `<button class="ib" data-a="swap" data-i="${i}">🔁</button>` : ''}</div>`; }).join('')}</div>
       ${w.cat === 'Calisthenics' && S.pinned.length ? `<div class="hint" style="margin-top:10px">📌 Plus your pinned skills: <b>${S.pinned.map(id => SKILLS.find(s => s.id === id).n).join(', ')}</b></div>` : ''}
       ${S.profile && !w.fixed && !['Calisthenics','Travel','Cardio','Core'].includes(w.cat) ? `<div class="hint" style="margin-top:10px">${GOALS[S.profile.goal].ic} Sets, reps & rest tuned for <b>${GOALS[S.profile.goal].n}</b></div>` : ''}
+      ${P.phase ? `<div class="hint" style="margin-top:10px">📅 <b>${P.phase.n} week:</b> ${P.phase.note}</div>` : ''}
       ${!['Cardio','Core'].includes(w.cat) ? `<button class="btn wide s" style="margin-top:10px;${P.fin ? 'border-color:var(--acc);color:var(--acc)' : ''}" data-a="fin">${P.fin ? '✓ 10-min finisher added' : '＋ Add 10-min finisher'}</button>` : ''}
       <div class="row" style="margin-top:14px">${w.gen ? `<button class="btn s sp" data-a="regen">⚡ Another one</button>` : `<button class="btn s sp" data-a="shuffle">🎲 Shuffle</button>`}<button class="btn s sp" data-a="customize">✏️ Customize</button>${w.custom ? `<button class="btn s" data-a="edit" data-id="${w.id}">Edit</button>` : ''}</div>
       <button class="btn pri wide" style="margin-top:12px" data-a="start">Start workout ▶</button>`;
@@ -377,6 +384,9 @@ const MODALS = {
       ${[...pts].reverse().map(p => `<div class="exl"><span class="sp">${fmtDate(p.t)}</span><b>${p.top.kg ? p.top.kg + 'kg × ' : ''}${p.top.r}</b><span class="mut sm">${x.t === 'w' ? '≈' + Math.round(p.v) : ''}</span></div>`).join('')}`;
   },
   coach: () => coachView(),
+  programs: () => programsView(),
+  checkin: () => checkinForm(),
+  checkres: () => checkinResult(),
   body: () => bodyForm(),
   form(){
     const x = exById(UI.form), k = demoKey(x), info = k && DEMO_INFO[k];
@@ -488,7 +498,12 @@ function render(){
 }
 const open = m => { UI.modal = m; render(); };
 const close = () => { UI.modal = null; render(); };
-function openPreview(w){ UI.P = {w, list:w.fixed ? w.ex.map(x => [...x]) : applyGoal(w, w.ex.map(x => [...x])), mins:UI.tmins, fin:false}; open('preview'); }
+function openPreview(w){
+  let list = w.fixed ? w.ex.map(x => [...x]) : applyGoal(w, w.ex.map(x => [...x])), phase = null;
+  const st = programState();
+  if (deloadActive()) phase = DELOAD_PHASE; else if (st && !st.finished && st.next?.id === w.id) phase = st.phase;
+  UI.P = {w, list:applyWeek(list, phase), mins:UI.tmins, fin:false, phase}; open('preview');
+}
 function openEditor(base){ UI.E = {id:'', n:'', cat:'Upper', notes:'', list:[], ...JSON.parse(JSON.stringify(base || {}))}; open('editor'); }
 function openPicker(mode, from){ UI.pick = {mode, from}; UI.q = ''; open('picker'); }
 
@@ -505,7 +520,7 @@ const A = {
   tmins: el => { UI.tmins = +el.dataset.v; render(); },
   preview: el => openPreview(wById(el.dataset.id)),
   quickstart: el => { const w = wById(el.dataset.id); startWorkout(w, w.ex); },
-  skipday: () => { S.settings.pos++; save(); render(); },
+  skipday: () => { const st = programState(); if (st && !st.finished) S.program.done = (S.program.done || 0) + 1; else S.settings.pos++; save(); render(); },
   mins: el => { UI.P.mins = +el.dataset.v; render(); },
   swap: el => {
     const P = UI.P, i = +el.dataset.i, id = P.list[i][0], travel = P.w.cat === 'Travel';
@@ -596,6 +611,14 @@ const A = {
   form: el => { UI.formBack = UI.modal && UI.modal !== 'form' ? UI.modal : null; UI.form = el.dataset.id; open('form'); },
   formback: () => { const b = UI.formBack; UI.formBack = null; b ? open(b) : close(); },
   coach: () => open('coach'),
+  programs: () => open('programs'),
+  progstart: el => { if (S.program && !confirm('Replace your current program?')) return; S.program = {id:el.dataset.id, start:Date.now(), done:0}; save(); close(); toast('Program started 💪'); },
+  progstop: () => { if (!confirm('Stop this program and go back to your coach plan?')) return; S.program = null; save(); close(); },
+  checkin: () => { UI.ci = {}; open('checkin'); },
+  ciset: el => { UI.ci[el.dataset.k] = el.dataset.v; render(); },
+  cisubmit: () => { const d = UI.ci; if (!d.feel || !d.sleep || !d.hunger) return toast('Answer the three questions'); runCheckin(); save(); open('checkres'); },
+  ciapply: () => { applyCheckin(); save(); close(); toast('Plan updated ✓'); },
+  ciskip: () => { UI.ciResult.changes = []; applyCheckin(); save(); close(); },
   togsignup: () => { UI.signup = !UI.signup; render(); },
   login: async el => {
     const email = $('#l_em').value.trim(), pw = $('#l_pw').value;
@@ -655,6 +678,7 @@ document.addEventListener('input', ev => {
   else if (d.ef) UI.E[d.ef] = t.value;
   else if (d.el !== undefined) { const row = UI.E.list[+d.el], k = +d.k; row[k] = k === 2 ? t.value : +t.value || 0; }
   else if (d.ob) UI.obd[d.ob] = t.value;
+  else if (d.ci) UI.ci[d.ci] = t.value;
   else if (t.id === 'pq') { UI.q = t.value; $('#plist').innerHTML = pickList(); }
   else if (d.set) { S.settings[d.set] = d.set === 'inc' ? +t.value.replace(',', '.') || 2.5 : t.value; if (d.set === 'split') S.settings.pos = 0; save(); }
 });
