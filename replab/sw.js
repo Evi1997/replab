@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION whenever app files change so phones pick up the update.
-const VERSION = 'replab-v22';
+const VERSION = 'replab-v23';
 const FILES = ['./', 'index.html', 'app.js', 'data.js', 'demos.js', 'cloud.js', 'coach.js', 'gen.js', 'program.js', 'chat.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 importScripts('demos.js');
 const IMAGES = [...new Set(Object.values(DEMO_MAP))].flatMap(k => [`img/${k}-0.jpg`, `img/${k}-1.jpg`]);

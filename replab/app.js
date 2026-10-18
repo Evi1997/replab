@@ -125,6 +125,15 @@ function wCard(w){
   return lrow({a:'preview', id:w.id, ic:(GROUPS.find(g => g[0] === w.cat) || ['', '🏋️'])[1], title:esc(w.n), sub:`${estMin(t)} min · ${t.length} exercises${w.custom ? ' · mine' : ''}`});
 }
 const GROUPS = [['Legs','🦵'],['Glutes','🍑'],['Push','🏋️'],['Pull','🧗'],['Upper','💪'],['Arms','🦾'],['Full Body','🔥'],['Core','🎯'],['Cardio','❤️'],['Calisthenics','🤸'],['Travel','✈️']];
+const exRow = (e, a = 'form', extra = '') => `<button class="lrow" data-a="${a}" data-id="${e.id}">${thumb(e, 40)}<span class="lt"><b>${esc(e.n)}</b><span>${EQN[e.e] || 'Custom'} · ${esc(e.m || '')}${extra}</span></span><span class="lr">›</span></button>`;
+const matches = (q, ...fields) => fields.join(' ').toLowerCase().includes(q.toLowerCase().trim());
+const newExRow = (q, then) => q.trim() ? `<div class="group" style="margin-top:12px"><button class="lrow" data-a="cxnew" data-v="${esc(q.trim())}" data-then="${then}"><span class="lic" style="background:rgba(198,255,0,.15)">＋</span><span class="lt"><b>Add “${esc(q.trim())}”</b><span>Create it as a new exercise</span></span><span class="lr">›</span></button></div>` : '';
+function workoutSearch(){
+  const q = UI.wq || '', ws = allWorkouts().filter(w => matches(q, w.n, w.cat)).slice(0, 8);
+  const xs = [...S.exercises, ...EXERCISES].filter(e => matches(q, e.n, e.m || '', PATTERNS[e.p] || '')).slice(0, 25);
+  return listGroup('Workouts', ws.map(wCard)) + listGroup('Exercises', xs.map(e => exRow(e)))
+    + (!ws.length && !xs.length ? `<div class="empty">Nothing found for “${esc(q)}”.</div>` : '') + newExRow(q, 'none');
+}
 function nextWorkout(){
   const seq = planSeq(), st = programState();
   if (st && !st.finished) return {w:st.next, label:`${esc(st.P.n)} · week ${st.week + 1} · ${st.phase.n}`};
@@ -155,10 +164,13 @@ const VIEWS = {
       ${g ? listGroup('Your goal', [lrow({a:'coach', ic:g.ic, title:g.n, sub:`${S.profile.days}× a week · calories, protein & plan`})]) : ''}`;
   },
   workouts(){
-    const groups = S.workouts.length ? [...GROUPS, ['Mine','⭐']] : GROUPS;
+    const tiles = [...GROUPS.map(([g, i]) => `<button class="tile" data-a="group" data-v="${g}"><span class="ti">${i}</span>${g}</button>`),
+      `<button class="tile tileadd" data-a="newworkout"><span class="ti">＋</span>Build your own</button>`];
     return `<h1>Workouts</h1>
-      <div class="tiles3">${groups.map(([g, i]) => `<button class="tile" data-a="group" data-v="${g}"><span class="ti">${i}</span>${g}</button>`).join('')}</div>
-      ${listGroup('', [lrow({a:'newworkout', ic:'＋', title:'Build your own', sub:'Pick exercises, sets and reps'})])}`;
+      <div class="search"><span>🔍</span><input id="wsq" type="search" placeholder="Search workouts & exercises" value="${esc(UI.wq || '')}" autocomplete="off" enterkeyhint="search"></div>
+      <div id="wres">${UI.wq ? workoutSearch() : ''}</div>
+      <div id="wbrowse"${UI.wq ? ' hidden' : ''}><div class="tiles3">${tiles.join('')}</div>
+      ${S.workouts.length ? listGroup('', [lrow({a:'group', v:'Mine', ic:'⭐', title:'My workouts', sub:`${S.workouts.length} saved`})]) : ''}</div>`;
   },
   programs(){
     const st = programState();
@@ -320,13 +332,8 @@ const MODALS = {
   },
   picker(){
     return `<h3>${UI.pick.mode === 'swap' ? 'Swap exercise' : 'Add exercise'}</h3>
-      <input id="pq" placeholder="Search 100+ exercises…" value="${esc(UI.q)}" autocomplete="off">
-      <div id="plist" style="margin-top:8px">${pickList()}</div>
-      <h2>Not in the list?</h2>
-      <div class="card"><div class="field"><input id="cx_n" placeholder="Exercise name (e.g. from the video)"></div>
-      <div class="row"><select id="cx_t"><option value="w">Weight × reps</option><option value="r">Bodyweight reps</option><option value="s">Timed (seconds)</option></select>
-      <button class="btn s pk" data-a="cxsave">Create</button></div>
-      <input id="cx_l" style="margin-top:8px" placeholder="Optional: video link for this exercise"></div>`;
+      <div class="search"><span>🔍</span><input id="pq" type="search" placeholder="Search exercises" value="${esc(UI.q)}" autocomplete="off" enterkeyhint="search"></div>
+      <div id="plist" style="margin-top:8px">${pickList()}</div>`;
   },
   menu(){
     const i = UI.menu, e = S.active.ex[i], x = exById(e.id);
@@ -375,22 +382,22 @@ const MODALS = {
       ${[...pts].reverse().map(p => `<div class="exl"><span class="sp">${fmtDate(p.t)}</span><b>${p.top.kg ? p.top.kg + 'kg × ' : ''}${p.top.r}</b><span class="mut sm">${x.t === 'w' ? '≈' + Math.round(p.v) : ''}</span></div>`).join('')}`;
   },
   swap: () => {
-    const sw = UI.sw, cur = sw.ctx === 'a' ? S.active.ex[sw.i].id : UI.P.list[sw.i][0], x = exById(cur);
-    const taken = sw.ctx === 'a' ? S.active.ex.map(e => e.id) : UI.P.list.map(r => r[0]);
+    const sw = UI.sw, cur = sw.ctx === 'a' ? S.active.ex[sw.i].id : UI.P.list[sw.i][0], x = exById(cur), orig = exById(sw.orig || cur);
     const all = swapOptions(sw.orig || cur).filter(o => o.e.id !== cur);
     const counts = Object.fromEntries(Object.entries(EQ_FILTERS).map(([k, [, ok]]) => [k, all.filter(o => ok(o.e)).length]));
-    const shown = all.filter(o => EQ_FILTERS[sw.eq][1](o.e)), orig = exById(sw.orig || cur);
-    const TIER = ['✓ Same benefit', 'Similar', 'Different focus'];
-    const row = o => `<button class="lrow" data-a="doswap" data-id="${o.e.id}">${thumb(o.e, 44)}<span class="lt"><b>${esc(o.e.n)}</b><span>${EQN[o.e.e] || ''} · ${esc(o.e.m || '')}${taken.includes(o.e.id) ? ' · in workout' : ''}</span></span><span class="lr">›</span></button>`;
-    const section = t => { const rows = shown.filter(o => o.tier === t); if (!rows.length) return '';
-      return t === 2 && !sw.more ? `<button class="btn wide ghost s" style="margin-top:8px" data-a="swapmore">Show ${rows.length} with a different focus</button>`
-        : `<h2 class="${t === 0 ? 'acc' : ''}">${TIER[t]}${t === 2 ? ' (works different muscles)' : ''}</h2><div class="group">${rows.map(row).join('')}</div>`; };
     return `<div class="tag">Swap exercise</div><h3>${esc(x.n)}</h3><div class="sm mut" style="margin-bottom:12px">Trains ${esc((orig.m || '').toLowerCase())}. Options are ranked by how closely they match that benefit.</div>
-      <div class="seg">${Object.entries(EQ_FILTERS).filter(([k]) => k === 'all' || counts[k]).map(([k, [n]]) => `<button class="${sw.eq === k ? 'on' : ''}" data-a="swapeqf" data-v="${k}">${n}</button>`).join('')}</div>
+      <div class="search"><span>🔍</span><input id="swq" type="search" placeholder="Search any exercise" value="${esc(sw.q || '')}" autocomplete="off" enterkeyhint="search"></div>
+      <div class="seg" style="margin-top:10px">${Object.entries(EQ_FILTERS).filter(([k]) => k === 'all' || counts[k]).map(([k, [n]]) => `<button class="${sw.eq === k ? 'on' : ''}" data-a="swapeqf" data-v="${k}">${n}</button>`).join('')}</div>
       ${sw.orig && sw.orig !== cur ? `<div class="group" style="margin-top:12px"><button class="lrow" data-a="doswap" data-id="${sw.orig}">${thumb(orig, 44)}<span class="lt"><b>↩︎ ${esc(orig.n)}</b><span>Back to the original</span></span><span class="lr">›</span></button></div>` : ''}
-      ${shown.length ? section(0) + section(1) + section(2) : `<div class="empty">No ${EQ_FILTERS[sw.eq][0].toLowerCase()} option for this movement.</div>`}
-      <button class="btn wide" style="margin-top:12px" data-a="swapsearch">🔎 Search all exercises</button>`;
+      <div id="swlist">${swapList()}</div>`;
   },
+  newex: () => { const n = UI.nx;
+    return `<div class="tag">New exercise</div><h3>Add your own</h3>
+      <div class="field" style="margin-top:12px"><label>Name</label><input id="nx_n" value="${esc(n.name)}" autocomplete="off"></div>
+      <div class="field"><label>How you log it</label><div class="seg">${[['w','Weight × reps'],['r','Reps'],['s','Time']].map(([k, l]) => `<button class="${n.t === k ? 'on' : ''}" data-a="nxt" data-v="${k}">${l}</button>`).join('')}</div></div>
+      <div class="field"><label>Equipment</label><select id="nx_e">${Object.entries(EQN).map(([k, l]) => `<option value="${k}" ${n.e === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="field"><label>Main movement</label><select id="nx_p">${Object.entries(PATTERNS).filter(([k]) => !['skill','other'].includes(k)).map(([k, l]) => `<option value="${k}" ${n.p === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <button class="btn pri wide" data-a="nxsave">Add exercise</button>`; },
   coach: () => coachView(),
   chat: () => chatView(),
   programs: () => programsView(),
@@ -434,6 +441,9 @@ const MODALS = {
   },
 };
 function pickList(){
+  return pickRows() + newExRow(UI.q || '', 'pick');
+}
+function pickRows(){
   const q = UI.q.trim().toLowerCase();
   let list = [...S.exercises, ...EXERCISES];
   if (UI.pick.mode === 'swap' || UI.pick.mode === 'pswap') { const p = exById(UI.pick.mode === 'swap' ? S.active.ex[UI.pick.from].id : UI.P.list[UI.pick.from][0]).p; list.sort((a, b) => (b.p === p) - (a.p === p)); }
@@ -463,6 +473,20 @@ const PAGES = {
   plan: () => ['Your plan', coachView().replace(/^<div class="tag">Your coach plan<\/div><h3>.*?<\/h3>/, '')],
   settings: () => ['Settings', MODALS.settings().replace(/^<h3>Settings<\/h3>/, '')],
 };
+function swapList(){
+  const sw = UI.sw, cur = sw.ctx === 'a' ? S.active.ex[sw.i].id : UI.P.list[sw.i][0], q = (sw.q || '').trim();
+  const taken = sw.ctx === 'a' ? S.active.ex.map(e => e.id) : UI.P.list.map(r => r[0]);
+  const ok = EQ_FILTERS[sw.eq][1], opts = swapOptions(sw.orig || cur).filter(o => o.e.id !== cur && ok(o.e));
+  const TIER = ['✓ Same benefit', 'Similar', 'Different focus (works different muscles)', 'Other exercises'];
+  const extra = e => taken.includes(e.id) ? ' · in workout' : '';
+  let rows = opts;
+  if (q) { const seen = new Set(opts.map(o => o.e.id));
+    rows = [...opts.filter(o => matches(q, o.e.n, o.e.m || '')), ...[...S.exercises, ...EXERCISES].filter(e => !seen.has(e.id) && e.id !== cur && ok(e) && matches(q, e.n, e.m || '')).map(e => ({e, tier:3}))]; }
+  const section = t => { const r = rows.filter(o => o.tier === t); if (!r.length) return '';
+    return t === 2 && !sw.more && !q ? `<button class="btn wide ghost s" style="margin-top:8px" data-a="swapmore">Show ${r.length} with a different focus</button>`
+      : `<h2 class="${t === 0 ? 'acc' : ''}">${TIER[t]}</h2><div class="group">${r.map(o => exRow(o.e, 'doswap', extra(o.e))).join('')}</div>`; };
+  return (rows.length ? [0, 1, 2, 3].map(section).join('') : `<div class="empty">${q ? `No match for “${esc(q)}”.` : `No ${EQ_FILTERS[sw.eq][0].toLowerCase()} option for this movement.`}</div>`) + newExRow(q, 'swap');
+}
 const pushPage = (t, extra = {}) => { UI.stack = [...(UI.stack || []), {t, ...extra}]; UI.modal = null; render(); };
 
 // ---------- render ----------
@@ -482,7 +506,7 @@ function render(){
 const open = m => { UI.modal = m; render(); };
 // ✕, swipe-down and backdrop go back to the sheet underneath (e.g. how-to → workout preview)
 const close = () => {
-  const back = UI.modal === 'form' ? UI.formBack : (UI.modal === 'swap' && UI.sw?.ctx === 'p') || (UI.modal === 'picker' && UI.pick?.mode === 'pswap') ? 'preview' : null;
+  const back = UI.modal === 'newex' ? UI.nx?.back : UI.modal === 'form' ? UI.formBack : (UI.modal === 'swap' && UI.sw?.ctx === 'p') || (UI.modal === 'picker' && UI.pick?.mode === 'pswap') ? 'preview' : null;
   UI.formBack = null; UI.modal = back || null; render();
 };
 function openPreview(w){
@@ -492,7 +516,7 @@ function openPreview(w){
   UI.P = {w, list:applyWeek(list, phase), mins:UI.tmins, fin:false, phase}; open('preview');
 }
 function openEditor(base){ UI.E = {id:'', n:'', cat:'Upper', notes:'', list:[], ...JSON.parse(JSON.stringify(base || {}))}; open('editor'); }
-function openPicker(mode, from){ UI.pick = {mode, from}; UI.q = ''; open('picker'); }
+function openPicker(mode, from){ UI.pick = {mode, from}; UI.q = ''; open('picker'); $('#pq')?.focus(); }
 
 // ---------- actions ----------
 const A = {
@@ -560,6 +584,17 @@ const A = {
     else if (UI.pick.mode === 'swap') { const e = S.active.ex[UI.pick.from]; e.id = id; save(); UI.modal = null; render(); }
     else if (UI.pick.mode === 'pswap') { UI.P.list[UI.pick.from][0] = id; open('preview'); }
     else { S.active.ex.push(mkEx(id, 3, reps, S.settings.rest)); save(); close(); }
+  },
+  cxnew: el => { const then = el.dataset.then, base = then === 'swap' ? exById(UI.sw.orig || UI.P?.list?.[UI.sw.i]?.[0] || 'squat') : null;
+    UI.nx = {name:el.dataset.v, t:'w', e:base?.e === 'mach' || base?.e === 'cable' ? 'db' : base?.e || 'db', p:base?.p || 'other', then, back:UI.modal}; open('newex'); },
+  nxt: el => { UI.nx.t = el.dataset.v; UI.nx.name = $('#nx_n').value; UI.nx.e = $('#nx_e').value; UI.nx.p = $('#nx_p').value; render(); },
+  nxsave: () => {
+    const n = $('#nx_n').value.trim(); if (!n) return toast('Give it a name');
+    const p = $('#nx_p').value, x = {id:'c' + uid(), n, p, e:$('#nx_e').value, t:UI.nx.t, m:PATTERNS[p] || 'Custom'};
+    S.exercises.unshift(x); save(); toast(`Added “${n}” ✓`);
+    if (UI.nx.then === 'swap') { UI.modal = 'swap'; A.doswap({dataset:{id:x.id}}); }
+    else if (UI.nx.then === 'pick') { UI.modal = 'picker'; A.pickex({dataset:{id:x.id}}); }
+    else { UI.modal = null; UI.wq = ''; render(); }
   },
   cxsave: () => {
     const n = $('#cx_n').value.trim(); if (!n) return toast('Type a name');
@@ -687,6 +722,8 @@ document.addEventListener('input', ev => {
   else if (d.ob) UI.obd[d.ob] = t.value;
   else if (d.ci) UI.ci[d.ci] = t.value;
   else if (t.id === 'pq') { UI.q = t.value; $('#plist').innerHTML = pickList(); }
+  else if (t.id === 'swq') { UI.sw.q = t.value; $('#swlist').innerHTML = swapList(); }
+  else if (t.id === 'wsq') { UI.wq = t.value; $('#wres').innerHTML = UI.wq ? workoutSearch() : ''; $('#wbrowse').hidden = !!UI.wq; }
   else if (d.set) { S.settings[d.set] = d.set === 'inc' ? +t.value.replace(',', '.') || 2.5 : t.value; if (d.set === 'split') S.settings.pos = 0; save(); }
 });
 document.addEventListener('change', ev => {
