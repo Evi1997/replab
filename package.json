@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "Rep Lab: personal trainer app (iOS wrapper for the web app in replab/)",
   "scripts": {
-    "sync": "cap sync ios"
+    "sync": "cap sync ios",
+    "ios:install": "cap sync ios && cd ios/App && xcodebuild -project App.xcodeproj -scheme App -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath ../DerivedData -allowProvisioningUpdates DEVELOPMENT_TEAM=966HXBVL6Y CODE_SIGN_STYLE=Automatic build -quiet && xcrun devicectl device install app --device $(xcrun devicectl list devices | awk '/iPhone/ && /connected/ {for(i=1;i<=NF;i++) if($i ~ /^[0-9A-F]{8}-/) print $i; exit}') ../DerivedData/Build/Products/Debug-iphoneos/App.app"
   },
   "dependencies": {
     "@capacitor/cli": "^8.5.3",
