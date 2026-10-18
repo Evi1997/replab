@@ -406,6 +406,9 @@ const MODALS = {
       <button class="btn wide" data-a="editprofile">✏️ Goal, body & training details</button>
       <h2>AI coach helper</h2><p class="sm mut">Your free Cloudflare helper link. It powers the AI chat coach (free daily allowance). Without it the coach uses built-in rules.</p>
       <input data-set="helper" value="${esc(st.helper || '')}" placeholder="https://replab-import.yourname.workers.dev">
+      <h2>What ${COACH_NAME} remembers</h2>
+      <div class="group">${(S.coachNotes || []).length ? S.coachNotes.map((n, i) => `<div class="lrow"><span class="lic">🌿</span><span class="lt"><b style="font-weight:500;font-size:15px">${esc(n.text)}</b><span>${fmtDate(n.t)}</span></span><button class="lr danger" data-a="delnote" data-i="${i}" aria-label="Forget">✕</button></div>`).join('')
+        : `<div class="lrow"><span class="lic">🌿</span><span class="lt"><b style="font-weight:500;font-size:15px">Nothing yet</b><span>${COACH_NAME} saves lasting things you mention, like an injury or when you like to train.</span></span></div>`}</div>
       ${accountSection()}
       <h2>Backup</h2><p class="sm mut">Your data lives only on this phone. Export a backup now and then (e.g. save to Files or AirDrop it to your Mac).</p>
       <button class="btn wide" data-a="export">⬇ Export backup</button>
@@ -577,6 +580,7 @@ const A = {
   form: el => { UI.formBack = UI.modal && UI.modal !== 'form' ? UI.modal : null; UI.form = el.dataset.id; open('form'); },
   formback: () => { const b = UI.formBack; UI.formBack = null; b ? open(b) : close(); },
   coach: () => pushPage('plan'),
+  delnote: el => { S.coachNotes.splice(+el.dataset.i, 1); save(); render(); },
   chat: () => { UI.tab = 'coach'; UI.modal = null; render(); },
   chatnew: () => { chatStart(); render(); },
   chatq: el => { const k = el.dataset.k; if (k.startsWith('ai:')) chatInput(k.slice(3)); else chatInput(el.textContent, k); render(); },

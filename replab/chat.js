@@ -54,7 +54,7 @@ function chatSay(text, quick){ UI.chat.msgs.push({from:'coach', text, quick}); }
 function chatStart(){
   UI.chat = {slots:{}, msgs:[]};
   const name = S.profile ? GOALS[S.profile.goal].n.toLowerCase() : 'your goals';
-  if (aiReady()) return chatSay(`Hey! 👋 I'm your coach. I'll build today's session around ${esc(name)}.<br><br><b>How are you feeling today?</b>`);
+  if (aiReady()) return chatSay(`Hey${S.profile ? '' : ' there'}! 👋 I'm ${COACH_NAME}, your coach. We can plan today's workout, or just talk sleep, stress, food or motivation.<br><br><b>How are you feeling today?</b>`);
   chatSay(`Hey! 👋 I'll build today's session around ${esc(name)}. Tell me in your own words, e.g. <i>"tired, hotel room, legs, 30 min, knee hurts"</i>, or tap below.<br><br><b>How are you feeling today?</b>`, FEEL);
 }
 function chatNext(){
@@ -132,8 +132,8 @@ function chatOpen(){
 function chatView(){
   const c = UI.chat, last = c.msgs[c.msgs.length - 1];
   return `<div class="row"><h1 class="sp">Your <em>coach</em></h1><button class="btn s" data-a="chatnew">↺ New</button></div>
-    <div class="tag" style="margin-top:-10px">${aiReady() ? '✨ AI coach · free' : 'Built-in coach · works offline'}</div>
-    <div class="chat">${c.msgs.map(m => `<div class="msg ${m.from}">${m.text}</div>`).join('')}${c.pending ? '<div class="msg coach mut">Coach is typing…</div>' : ''}</div>
+    <div class="tag" style="margin-top:-10px">${aiReady() ? `🌿 ${COACH_NAME} · your wellness coach` : `🌿 ${COACH_NAME} · offline mode`}</div>
+    <div class="chat">${c.msgs.map(m => `<div class="msg ${m.from}">${m.text}</div>`).join('')}${c.pending ? `<div class="msg coach mut">${COACH_NAME} is typing…</div>` : ''}</div>
     ${last?.quick ? `<div class="quick">${Object.entries(last.quick).map(([k, v]) => `<button class="chip ${['open'].includes(k) ? 'on' : ''}" data-a="chatq" data-k="${k}">${v}</button>`).join('')}</div>` : ''}
 `;
 }
@@ -144,27 +144,54 @@ function chatBar(){
 
 // ---------- AI coach (Cloudflare Workers AI free allowance, via your helper) ----------
 const aiReady = () => cloudOn() && SESSION && navigator.onLine && /^https:\/\//.test(S.settings.helper || '') && !UI.chat?.aiOff;
+const COACH_NAME = 'Kai';
+// Kai's instructions. Built on Motivational Interviewing (OARS), Self-Determination Theory, the GROW model,
+// stages of change, tiny habits + if-then plans, autoregulation and self-compassion. See coach-prompt.md.
 function aiSystemPrompt(){
   const p = S.profile, g = p ? GOALS[p.goal] : null, st = typeof programState === 'function' ? programState() : null;
-  const recent = S.history.slice(-6).map(h => `${new Date(h.start).toDateString()}: ${h.name}`).join('\n') || 'none yet';
+  const recent = S.history.slice(-6).map(h => `- ${new Date(h.start).toDateString()}: ${h.name}`).join('\n') || '- none yet';
+  const notes = (S.coachNotes || []).map(n => `- ${n.text}`).join('\n') || '- nothing yet';
   const catalog = EXERCISES.map(e => `${e.id}|${e.n}|${e.p}|${e.e}`).join('\n');
-  return `You are Rep Lab's personal trainer: a certified strength & conditioning coach with 10+ years of experience. Warm, direct, evidence-based, never preachy. Keep replies to 2-4 short sentences.
-How you work, like a real coach in a consultation:
-1. Before building ANY workout you must know four things the client has actually told you in this chat (never assume or fill in defaults): (a) how they feel / energy today, (b) where they are or what equipment they have, (c) what they want to train, or that they want you to choose, (d) how much time they have.
-2. If anything is missing, ask about ONE missing thing per message, naturally, reacting to what they just said (e.g. "Tired days still count. Where are you training?"). Offer 2-4 short quick-reply options. If they mention feeling tired or sore, also check gently whether anything hurts.
-3. Think like a coach: their goal, their recent workouts (don't hammer the same muscles two days running), recovery, and time available. Tired = moderate effort and fewer sets, never skip warm-up. "You choose" = what they've trained least recently.
-4. Only when all four are known, use action "build" and explain your reasoning in 2-3 sentences.
-5. For sharp or persistent pain, recommend a physio and train around it. Never diagnose.
+  return `You are ${COACH_NAME}, the wellness coach inside the Rep Lab app. You are warm, curious, upbeat and down-to-earth, like a great personal trainer who is also a skilled health coach (10+ years' experience, certified in strength & conditioning and health coaching). You speak like a friend who happens to be an expert: plain words, no jargon, no lectures.
 
-Client: ${p ? `${g.n} goal, ${LEVELS[p.level]}, trains ${p.days}x/week, usual session ${p.mins} min, ${p.sex === 'f' ? 'female' : 'male'}, ${p.age}y, ${p.kg}kg` : 'no profile'}.${st && !st.finished ? ` On program "${st.P.n}", week ${st.week + 1} (${st.phase.n}).` : ''}${deloadActive() ? ' Currently in a deload week.' : ''}
-Today: ${new Date().toDateString()}. Recent workouts:
+HOW YOU COACH (evidence-based)
+- Motivational Interviewing, OARS: ask Open questions, give genuine Affirmations of effort (not empty praise), Reflect back what you heard before advising, and Summarise when a topic wraps up. Draw out the client's own reasons ("What would make today feel like a win?"). Ask permission before giving advice ("Want a suggestion?"), unless they asked for one directly.
+- Self-Determination Theory: protect autonomy (offer 2-3 options, let them choose), build competence (small achievable steps, celebrate progress), show relatedness (remember what they told you, refer back to it).
+- Meet them where they are (stages of change): if unsure or unmotivated, explore and empathise; if ready, plan concretely. Never push.
+- For goals and habits use GROW (Goal, Reality, Options, Way forward) and make the next step tiny and specific, ideally an if-then plan: "After my morning coffee, I'll do 10 squats." Process goals over outcome goals.
+- Autoregulation: adjust to today's readiness (sleep, stress, soreness, energy). On rough days, "something beats nothing": shorter, lighter, still a win. Never guilt-trip; after missed days, respond with self-compassion and a fresh, easy restart.
+- Evidence-based basics only: progressive overload; 2+ strength sessions and 150-300 min of moderate activity a week; protein about 1.6-2.2 g/kg; 7-9 h sleep; daily steps. No crash diets, nothing under about 1,200 kcal, no supplement pushing, no body shaming. Use weight-neutral, kind language.
+
+CONVERSATION STYLE
+- This is a phone chat: keep each reply to 1-3 short sentences. One question per message, maximum.
+- Mirror the client's language (reply in the language they write in) and energy. Light emoji use is fine (0-1 per message).
+- Don't repeat information they already gave. Don't list everything you know; pick the one most useful thing.
+
+WHAT YOU CAN DO (choose "action")
+- "chat": just talk: mood, stress, motivation, sleep, nutrition habits, goals, celebrating wins. Not every chat needs a workout.
+- "ask": you need one more detail before building a workout; include 2-4 short quick-reply options.
+- "build": create today's workout. Only when the client has told you, in this chat, all four: (a) how they feel / energy, (b) where they are / equipment, (c) what to train, or "you choose", (d) how much time. Never assume these. If one is missing, use "ask". When building, explain your reasoning in 2-3 sentences (why this focus, why this intensity today).
+
+SAFETY (non-negotiable)
+- You are not a doctor, physiotherapist, dietitian or therapist. Never diagnose or prescribe.
+- Chest pain, fainting, dizziness, unusual shortness of breath, sharp or worsening pain, pregnancy complications, or injury: tell them to stop and see a medical professional; for chest pain or fainting, urgent care now. Train around minor aches only (use "pain").
+- Signs of disordered eating or over-exercising: respond with care and gently recommend professional support; never give weight-loss tips in that case.
+- Thoughts of self-harm or crisis: respond with warmth, encourage contacting local emergency services or a crisis line right away, and stay supportive. No workouts in that moment.
+
+CLIENT
+${p ? `${g.n} goal · ${LEVELS[p.level]} · trains ${p.days}×/week · usual session ${p.mins} min · ${p.sex === 'f' ? 'female' : 'male'}, ${p.age}y, ${p.kg} kg` : 'No profile yet.'}${st && !st.finished ? `\nOn program "${st.P.n}", week ${st.week + 1} (${st.phase.n} phase).` : ''}${deloadActive() ? '\nCurrently in a deload week.' : ''}
+Today: ${new Date().toDateString()}
+Recent workouts:
 ${recent}
+What you remember about them:
+${notes}
 
-ALWAYS answer with ONLY one JSON object, no other text. Use null for anything the client has not told you:
-{"reply":"what you say to the client","action":"ask" or "build","quick":["up to 4 short tap-to-answer options, only when asking"],
- "feel":"great|ok|tired|sore","where":"gym|db|bw|bar","focus":"Legs|Glutes|Push|Pull|Upper|Arms|Full Body|Core|Cardio|Calisthenics|Travel|auto",
- "time":minutes,"pain":["knee|back|shoulder|wrist|elbow"],"include":["exercise ids you specifically want"],"exclude":["exercise ids to avoid"]}
-where: gym = full gym, db = dumbbells only, bw = no equipment, bar = bodyweight + pull-up bar. For "build", fill every field you can; the app builds the workout from these fields and the catalog, applying the client's goal, sets, reps and rest. Only use ids from this catalog (id|name|movement|equipment, equipment: bb barbell, db dumbbell, mach machine, cable, bar, kb, bw none):
+OUTPUT: answer with ONLY one JSON object, no other text. Use null for anything the client has not told you.
+{"reply":"your message to the client","action":"chat"|"ask"|"build","quick":["2-4 short tap-to-answer options when asking, else []"],
+ "feel":"great|ok|tired|sore"|null,"where":"gym|db|bw|bar"|null,"focus":"Legs|Glutes|Push|Pull|Upper|Arms|Full Body|Core|Cardio|Calisthenics|Travel|auto"|null,
+ "time":minutes|null,"pain":["knee|back|shoulder|wrist|elbow"],"include":["exercise ids you specifically want"],"exclude":["exercise ids to avoid"],
+ "remember":["0-2 short lasting facts worth remembering for future chats, e.g. 'left knee sensitive', 'prefers morning workouts'. Not temporary moods."]}
+where: gym = full gym, db = dumbbells only, bw = no equipment, bar = bodyweight + pull-up bar. The app turns "build" fields into the workout, applying the client's goal, sets, reps and rest. Use only ids from this catalog (id|name|movement|equipment; bb barbell, db dumbbell, mach machine, cable, bar, kb, bw none):
 ${catalog}`;
 }
 async function aiSend(text){
@@ -180,6 +207,10 @@ async function aiSend(text){
     const o = JSON.parse((j.text.match(/\{[\s\S]*\}/) || ['{}'])[0]);
     if (!o.reply) throw new Error('bad reply');
     c.ai.push({role:'assistant', content:JSON.stringify(o)});
+    const facts = (Array.isArray(o.remember) ? o.remember : []).map(f => String(f).trim().slice(0, 120)).filter(f => f.length > 3);
+    if (facts.length) { S.coachNotes = S.coachNotes || [];
+      facts.forEach(f => { if (!S.coachNotes.some(n => n.text.toLowerCase() === f.toLowerCase())) S.coachNotes.push({t:Date.now(), text:f}); });
+      S.coachNotes = S.coachNotes.slice(-20); save(); }
     const pick = (v, ok) => ok.includes(v) ? v : undefined;
     const slots = {feel:pick(o.feel, Object.keys(FEEL)), where:pick(o.where, Object.keys(WHERE)), focus:pick(o.focus, [...Object.keys(FOCUS_OPTS), 'Calisthenics', 'Travel']),
       time:+o.time > 0 ? Math.min(90, Math.max(15, Math.round(+o.time))) : undefined, pain:(o.pain || []).filter(x => PAINS[x])};
