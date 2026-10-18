@@ -211,9 +211,8 @@ function exCard(e, i){
   const [lo] = range(e.reps);
   return `<div class="card">
     <div class="row"><button class="row sp" style="min-width:0;text-align:left" data-a="form" data-id="${e.id}">${thumb(x, 48)}<h3 style="font-size:18px">${esc(x.n)} <span class="acc sm">ⓘ</span></h3></button>
-    <button class="ib" data-a="exmenu" data-i="${i}">⋯</button></div>
-    <div class="sm mut">${e.sets.length} × ${esc(e.reps)} · rest ${fmtT(e.rest)}${x.m ? ' · ' + esc(x.m) : ''}</div>
-    ${swapRow(e.id, 'swapeq', i, S.active.ex.map(y => y.id))}
+    <button class="swapbtn" data-a="swapopen" data-ctx="a" data-i="${i}" aria-label="Swap exercise">⇄</button><button class="ib" data-a="exmenu" data-i="${i}">⋯</button></div>
+    <div class="sm mut">${e.sets.length} × ${esc(e.reps)} · rest ${fmtT(e.rest)} · ${EQN[x.e] || ''}</div>
     ${sug ? `<div class="hint">${sug.msg}</div>` : x.skill ? '' : `<div class="hint">First time: pick a weight you can do for <b>${esc(e.reps)}</b> with 1–2 reps left.</div>`}
     <table class="sets"><tr><th>SET</th><th>PREV</th><th>${kgL}</th><th>${rL}</th><th></th></tr>
     ${e.sets.map((s, j) => { const p = last[j];
@@ -294,9 +293,9 @@ const MODALS = {
     return `<div class="tag">${esc(w.cat)}</div><h3>${esc(w.n)}</h3><div class="mut sm">${esc(w.d || w.notes || '')}</div>
       ${w.v ? `<div style="margin-top:12px">${socialPlayer(w)}</div>` : ''}
       <div class="chips" style="margin-top:14px">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[0,`Full ~${estMin(P.list)}m`]].map(([m, l]) => `<button class="chip ${P.mins === m ? 'on' : ''}" data-a="mins" data-v="${m}">${l}</button>`).join('')}</div>
-      <div>${list.map(([id, s, r, rest], i) => { const x = exById(id), alt = alternatives(id, travel).length;
+      <div>${list.map(([id, s, r, rest], i) => { const x = exById(id);
         return `<div class="exl"><button data-a="form" data-id="${id}">${thumb(x, 44)}</button><div class="sp" style="min-width:0"><button data-a="form" data-id="${id}" style="font-weight:800;text-align:left">${esc(x.n)}</button>
-        <div class="sm mut">${s} × ${esc(r)} · rest ${fmtT(rest)}</div>${swapRow(id, 'pswapeq', i, list.map(y => y[0]))}</div>${alt ? `<button class="ib" data-a="swap" data-i="${i}">🔁</button>` : ''}</div>`; }).join('')}</div>
+        <div class="sm mut">${s} × ${esc(r)} · rest ${fmtT(rest)} · ${EQN[x.e] || ''}</div></div><button class="swapbtn" data-a="swapopen" data-ctx="p" data-i="${i}" aria-label="Swap exercise">⇄</button></div>`; }).join('')}</div>
       ${w.cat === 'Calisthenics' && S.pinned.length ? `<div class="hint" style="margin-top:10px">📌 Plus your pinned skills: <b>${S.pinned.map(id => SKILLS.find(s => s.id === id).n).join(', ')}</b></div>` : ''}
       ${S.profile && !w.fixed && !['Calisthenics','Travel','Cardio','Core'].includes(w.cat) ? `<div class="hint" style="margin-top:10px">${GOALS[S.profile.goal].ic} Sets, reps & rest tuned for <b>${GOALS[S.profile.goal].n}</b></div>` : ''}
       ${P.phase ? `<div class="hint" style="margin-top:10px">📅 <b>${P.phase.n} week:</b> ${P.phase.note}</div>` : ''}
@@ -375,6 +374,19 @@ const MODALS = {
         <text x="8" y="16" fill="#8b8b8b" font-size="11">${Math.round(mx)}</text><text x="8" y="${H - 4}" fill="#8b8b8b" font-size="11">${Math.round(mn)}</text></svg>
       ${[...pts].reverse().map(p => `<div class="exl"><span class="sp">${fmtDate(p.t)}</span><b>${p.top.kg ? p.top.kg + 'kg × ' : ''}${p.top.r}</b><span class="mut sm">${x.t === 'w' ? '≈' + Math.round(p.v) : ''}</span></div>`).join('')}`;
   },
+  swap: () => {
+    const sw = UI.sw, cur = sw.ctx === 'a' ? S.active.ex[sw.i].id : UI.P.list[sw.i][0], x = exById(cur);
+    const taken = sw.ctx === 'a' ? S.active.ex.map(e => e.id) : UI.P.list.map(r => r[0]);
+    const all = swapOptions(sw.orig || cur).filter(o => o.e.id !== cur);
+    const counts = Object.fromEntries(Object.entries(EQ_FILTERS).map(([k, [, ok]]) => [k, all.filter(o => ok(o.e)).length]));
+    const shown = all.filter(o => EQ_FILTERS[sw.eq][1](o.e));
+    const row = o => `<button class="lrow" data-a="doswap" data-id="${o.e.id}">${thumb(o.e, 44)}<span class="lt"><b>${esc(o.e.n)}</b><span>${EQN[o.e.e] || ''}${o.same ? '' : ' · similar movement'}${taken.includes(o.e.id) ? ' · already in workout' : ''}</span></span><span class="lr">›</span></button>`;
+    return `<div class="tag">Swap exercise</div><h3>${esc(x.n)}</h3><div class="sm mut" style="margin-bottom:12px">Currently ${EQN[x.e] || ''}. Pick what you have, and you can swap again any time.</div>
+      <div class="seg">${Object.entries(EQ_FILTERS).filter(([k]) => k === 'all' || counts[k]).map(([k, [n]]) => `<button class="${sw.eq === k ? 'on' : ''}" data-a="swapeqf" data-v="${k}">${n}</button>`).join('')}</div>
+      ${sw.orig && sw.orig !== cur ? `<div class="group" style="margin-top:12px"><button class="lrow" data-a="doswap" data-id="${sw.orig}">${thumb(exById(sw.orig), 44)}<span class="lt"><b>↩︎ ${esc(exById(sw.orig).n)}</b><span>Original exercise</span></span><span class="lr">›</span></button></div>` : ''}
+      ${shown.length ? `<div class="group" style="margin-top:12px">${shown.map(row).join('')}</div>` : `<div class="empty">No ${EQ_FILTERS[sw.eq][0].toLowerCase()} option for this movement.</div>`}
+      <button class="btn wide" style="margin-top:12px" data-a="swapsearch">🔎 Search all exercises</button>`;
+  },
   coach: () => coachView(),
   chat: () => chatView(),
   programs: () => programsView(),
@@ -420,7 +432,7 @@ const MODALS = {
 function pickList(){
   const q = UI.q.trim().toLowerCase();
   let list = [...S.exercises, ...EXERCISES];
-  if (UI.pick.mode === 'swap') { const p = exById(UI.pick.from).p; list.sort((a, b) => (b.p === p) - (a.p === p)); }
+  if (UI.pick.mode === 'swap' || UI.pick.mode === 'pswap') { const p = exById(UI.pick.mode === 'swap' ? S.active.ex[UI.pick.from].id : UI.P.list[UI.pick.from][0]).p; list.sort((a, b) => (b.p === p) - (a.p === p)); }
   if (q) list = list.filter(e => (e.n + ' ' + e.m + ' ' + (PATTERNS[e.p] || '')).toLowerCase().includes(q));
   return list.slice(0, 60).map(e => `<div class="exl" data-a="pickex" data-id="${e.id}" style="cursor:pointer"><div class="sp"><b>${esc(e.n)}</b><div class="sm mut">${esc(PATTERNS[e.p] || '')} · ${esc(e.m || '')}</div></div><span class="acc" style="font-size:22px">＋</span></div>`).join('') || '<div class="mut sm">No match. Create it below 👇</div>';
 }
@@ -464,7 +476,11 @@ function render(){
   tickRest();
 }
 const open = m => { UI.modal = m; render(); };
-const close = () => { UI.modal = null; render(); };
+// ✕, swipe-down and backdrop go back to the sheet underneath (e.g. how-to → workout preview)
+const close = () => {
+  const back = UI.modal === 'form' ? UI.formBack : (UI.modal === 'swap' && UI.sw?.ctx === 'p') || (UI.modal === 'picker' && UI.pick?.mode === 'pswap') ? 'preview' : null;
+  UI.formBack = null; UI.modal = back || null; render();
+};
 function openPreview(w){
   let list = w.fixed ? w.ex.map(x => [...x]) : applyGoal(w, w.ex.map(x => [...x])), phase = null;
   const st = programState();
@@ -485,6 +501,16 @@ const A = {
   group: el => { UI.group = el.dataset.v; pushPage('group', {g:el.dataset.v}); },
   equip: el => { UI.equip = {...(UI.equip || {}), [UI.group]:el.dataset.v}; render(); },
   swapeq: el => { const e = S.active.ex[+el.dataset.i]; e.id = el.dataset.v; save(); render(); toast('Swapped to ' + exById(el.dataset.v).n); },
+  swapopen: el => {
+    const ctx = el.dataset.ctx, i = +el.dataset.i, cur = ctx === 'a' ? S.active.ex[i] : null;
+    if (ctx === 'a') cur.orig = cur.orig || cur.id; else { UI.P.orig = UI.P.orig || {}; UI.P.orig[i] = UI.P.orig[i] || UI.P.list[i][0]; }
+    UI.sw = {ctx, i, eq:'all', orig:ctx === 'a' ? cur.orig : UI.P.orig[i]}; open('swap');
+  },
+  swapeqf: el => { UI.sw.eq = el.dataset.v; render(); },
+  doswap: el => { const {ctx, i} = UI.sw, id = el.dataset.id;
+    if (ctx === 'a') { S.active.ex[i].id = id; save(); UI.modal = null; render(); } else { UI.P.list[i][0] = id; open('preview'); }
+    toast('Swapped to ' + exById(id).n); },
+  swapsearch: () => { const {ctx, i} = UI.sw; openPicker(ctx === 'a' ? 'swap' : 'pswap', i); },
   pswapeq: el => { UI.P.list[+el.dataset.i][0] = el.dataset.v; render(); toast('Swapped to ' + exById(el.dataset.v).n); },
   format: el => { UI.format = el.dataset.v; render(); },
   gen: () => { const g = UI.group, eq = UI.equip?.[g] || defaultEquip(g), f = ['Cardio','Core'].includes(g) ? 'classic' : UI.format || 'classic'; openPreview(generateWorkout(g, eq, (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0, f)); },
@@ -526,7 +552,8 @@ const A = {
   pickex: el => {
     const id = el.dataset.id, x = exById(id), reps = x.t === 's' ? '30s' : '8-12';
     if (UI.pick.mode === 'editor') { UI.E.list.push([id, 3, reps, 90]); open('editor'); }
-    else if (UI.pick.mode === 'swap') { const e = S.active.ex[UI.pick.from]; e.id = id; save(); close(); }
+    else if (UI.pick.mode === 'swap') { const e = S.active.ex[UI.pick.from]; e.id = id; save(); UI.modal = null; render(); }
+    else if (UI.pick.mode === 'pswap') { UI.P.list[UI.pick.from][0] = id; open('preview'); }
     else { S.active.ex.push(mkEx(id, 3, reps, S.settings.rest)); save(); close(); }
   },
   cxsave: () => {
@@ -556,7 +583,7 @@ const A = {
   },
   exmenu: el => { UI.menu = +el.dataset.i; open('menu'); },
   setrest: el => { S.active.ex[UI.menu].rest = +el.dataset.v; save(); render(); },
-  mswap: () => openPicker('swap', UI.menu),
+  mswap: () => A.swapopen({dataset:{ctx:'a', i:UI.menu}}),
   mmove: el => { const ex = S.active.ex, i = UI.menu, j = i + +el.dataset.v; if (j < 0 || j >= ex.length) return; [ex[i], ex[j]] = [ex[j], ex[i]]; UI.menu = j; save(); render(); },
   mremove: () => { S.active.ex.splice(UI.menu, 1); save(); close(); },
   rest: el => { const v = +el.dataset.v; if (!v) REST = null; else if (REST) REST.end += v * 1000; tickRest(); },

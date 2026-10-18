@@ -50,8 +50,16 @@ function seededRandom(seed){ return () => { seed = (seed + 0x6D2B79F5) >>> 0; le
 
 // "No machine?" swaps: closest same-movement exercise for the equipment you actually have
 const SWAP_KINDS = {db:{n:'Dumbbells', ok:e => ['db','kb'].includes(e.e)}, bw:{n:'Bodyweight', ok:e => e.e === 'bw'}, bar:{n:'Barbell / bar', ok:e => ['bb','bar'].includes(e.e)}};
-const RELATED = {chestiso:['hpush'], latiso:['vpull','hpull'], quad:['squat','lunge'], ham:['hinge','glute'], glute:['hinge','lunge'], lowback:['hinge'],
+const RELATED = {squat:['lunge','quad'], lunge:['squat','glute'], hinge:['glute','ham'], hpush:['dip','chestiso'], vpush:['latraise','hpush'], chestiso:['hpush'], latiso:['vpull','hpull'], quad:['squat','lunge'], ham:['hinge','glute'], glute:['hinge','lunge'], lowback:['hinge'],
   latraise:['vpush'], reardelt:['hpull'], vpull:['hpull'], hpull:['vpull'], calf:[], traps:['hpull'], scap:['vpull'], core:['corehold'], corehold:['core'], dip:['hpush','triceps'], triceps:['dip','hpush'], biceps:['vpull']};
+const EQN = {bb:'Barbell', db:'Dumbbells', kb:'Kettlebell', mach:'Machine', cable:'Cable', bar:'Pull-up bar', bw:'Bodyweight'};
+const EQ_FILTERS = {all:['All', () => true], db:['Dumbbells', e => ['db','kb'].includes(e.e)], bw:['Bodyweight', e => e.e === 'bw' || e.e === 'bar'], bb:['Barbell', e => e.e === 'bb'], mach:['Machine', e => e.e === 'mach'], cable:['Cable', e => e.e === 'cable']};
+// every sensible replacement: same movement first, then related movements
+function swapOptions(id){
+  const x = exById(id), seen = new Set([id]), out = [];
+  for (const p of [x.p, ...(RELATED[x.p] || [])]) for (const e of [...S.exercises, ...EXERCISES]) if (e.p === p && !seen.has(e.id)) { seen.add(e.id); out.push({e, same:p === x.p}); }
+  return out;
+}
 const needsMachine = x => x.e === 'mach' || x.e === 'cable';
 function swapFor(id, kind, taken = []){
   const x = exById(id), ok = SWAP_KINDS[kind].ok;
