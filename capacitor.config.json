@@ -1,0 +1,13 @@
+{
+  "appId": "com.evi1997.replab",
+  "appName": "Rep Lab",
+  "webDir": "replab",
+  "backgroundColor": "#070707",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#070707",
+    "scheme": "Rep Lab",
+    "scrollEnabled": false,
+    "preferredContentMode": "mobile"
+  }
+}

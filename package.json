@@ -1,0 +1,14 @@
+{
+  "name": "replab",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Rep Lab: personal trainer app (iOS wrapper for the web app in replab/)",
+  "scripts": {
+    "sync": "cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3"
+  }
+}
