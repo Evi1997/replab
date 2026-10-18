@@ -93,6 +93,16 @@ tr.done .chk{background:var(--acc);color:var(--accTxt);border-color:var(--acc)}
 .empty{text-align:center;padding:36px 16px;color:var(--mut)}
 .empty .big{font-size:44px}
 .pr{color:var(--acc2);font-weight:900}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;min-height:104px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;font-weight:900;font-style:italic;text-transform:uppercase;font-size:17px;letter-spacing:-.2px;transition:transform .1s}
+.tile:active{transform:scale(.97);border-color:var(--acc)}.tile .ti{font-size:30px;font-style:normal}
+.wcard{display:flex;align-items:center;gap:12px;width:100%;text-align:left}
+.chev{font-size:30px;color:var(--mut);font-weight:300}
+.go{width:48px;height:48px;border-radius:50%;background:var(--acc);color:var(--accTxt);display:grid;place-items:center;font-size:18px;flex:none}
+.back{color:var(--acc);font-weight:900;font-size:17px;padding:6px 0}
+.vid{position:relative;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#000;margin-bottom:12px}
+.vid.tall{aspect-ratio:9/16;width:min(100%,calc(65vh * 9 / 16));margin:0 auto 12px}
+.vid iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .thumb{flex:none;border-radius:12px;object-fit:cover;background:#fff;display:grid;place-items:center}
 .thumb.ph{background:var(--card2);font-size:20px}
 .demo{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:3/2;background:#fff}

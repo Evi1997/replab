@@ -18,7 +18,7 @@ let S = load();
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) { toast('⚠️ Could not save'); } }
 if (navigator.storage?.persist) navigator.storage.persist();
 
-const UI = {tab:'train', cat:'All', modal:null, showActive:true, q:'', pick:null, P:null, E:null, hid:null, prog:null, skill:null, summary:null, menu:null};
+const UI = {tab:'train', group:'', tmins:0, modal:null, showActive:true, q:'', pick:null, P:null, E:null, hid:null, prog:null, skill:null, summary:null, menu:null};
 
 // ---------- helpers ----------
 function exById(id){
@@ -28,20 +28,30 @@ function exById(id){
   }
   return EXMAP[id] || S.exercises.find(e => e.id === id) || {id, n:id, p:'other', e:'bw', t:'w', m:''};
 }
+function embedUrl(u, id){
+  if (id) return id;
+  let m = /tiktok\.com\/.*video\/(\d+)/.exec(u || ''); if (m) return `https://www.tiktok.com/player/v1/${m[1]}?loop=1&rel=0`;
+  m = /instagram\.com\/(?:[\w.]+\/)?(p|reel|reels|tv)\/([\w-]+)/.exec(u || ''); if (m) return `https://www.instagram.com/${m[1] === 'p' ? 'p' : 'reel'}/${m[2]}/embed`;
+  m = /(?:youtu\.be\/|[?&]v=|shorts\/)([\w-]{11})/.exec(u || ''); if (m) return `https://www.youtube-nocookie.com/embed/${m[1]}?playsinline=1&rel=0`;
+  return null;
+}
+const player = (src, tall) => `<div class="vid ${tall ? 'tall' : ''}"><iframe src="${esc(src)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>`;
+const socialPlayer = w => { const src = embedUrl(w.v, w.embed); return src ? player(src, !/youtube/.test(src)) : `<a class="btn wide s" href="${esc(w.v)}" target="_blank" rel="noopener">${platform(w.v)[1]} Open video ↗</a>`; };
 const demoKey = x => DEMO_MAP[x.id] || (x.skill ? DEMO_MAP[x.n] : null);
 const thumb = (x, size = 56) => { const k = demoKey(x); return k ? `<img class="thumb" style="width:${size}px;height:${size}px" src="img/${k}-1.jpg" alt="" loading="lazy">` : `<span class="thumb ph" style="width:${size}px;height:${size}px">${x.skill ? '⭐' : '💪'}</span>`; };
 const allWorkouts = () => [...S.workouts, ...WORKOUTS];
 const wById = id => allWorkouts().find(w => w.id === id);
-const estMin = list => Math.round(list.reduce((t, [, s, , r]) => t + s * (45 + (+r || 60)) + 60, 0) / 60);
+const estMin = list => Math.round(list.reduce((t, [, s, , r]) => t + s * (40 + (+r || 60)) + 45, 0) / 60);
+// Fit a workout into a time budget: trim accessory sets first, then drop accessories, then trim main lifts.
 function trim(list, mins){
-  if (!mins) return list.map(x => [...x]);
-  const out = []; let t = 0;
-  for (const [id, s0, reps, rest] of list) {
-    let s = s0, c = s * (45 + rest) + 60;
-    while (out.length >= 3 && s > 2 && t + c > mins * 60) { s--; c = s * (45 + rest) + 60; }
-    if (out.length >= 3 && t + c > mins * 60) break;
-    out.push([id, s, reps, rest]); t += c;
-  }
+  const out = list.map(x => [...x]);
+  if (!mins) return out;
+  const over = () => estMin(out) > mins;
+  for (let i = out.length - 1; i >= 2 && over(); i--) out[i][1] = Math.min(out[i][1], 2);
+  while (over() && out.length > 4) out.pop();
+  for (let i = 0; i < out.length && over(); i++) out[i][1] = Math.min(out[i][1], 3);
+  while (over() && out.length > 3) out.pop();
+  for (let i = out.length - 1; i >= 0 && over(); i--) out[i][1] = 2;
   return out;
 }
 function alternatives(id, travel){
@@ -105,28 +115,29 @@ function resumeBar(){
   return `<button class="resume" data-a="resume">▶ <span class="sp" style="text-align:left">${esc(S.active.name)}</span><span class="timer" style="color:inherit;font-size:18px" data-elapsed>${fmtT((Date.now() - S.active.start) / 1000)}</span></button>`;
 }
 function wCard(w){
-  const pl = w.v ? platform(w.v) : null;
-  return `<div class="card tap" data-a="preview" data-id="${w.id}">
-    <div class="row"><span class="tag">${esc(w.cat)}${w.custom ? ' · mine' : ''}</span><span class="sp"></span>${pl ? `<span class="pill p">${pl[1]} ${pl[0]}</span>` : ''}<span class="pill">~${estMin(w.ex)} min</span></div>
-    <h3 style="margin-top:6px">${esc(w.n)}</h3>
-    <div class="mut sm" style="margin-top:4px">${w.ex.length} exercises · ${esc(w.ex.slice(0, 3).map(e => exById(e[0]).n).join(', '))}…</div></div>`;
+  const mins = estMin(trim(w.ex, UI.tmins));
+  return `<button class="card tap wcard" data-a="preview" data-id="${w.id}"><div class="sp" style="min-width:0">
+    <div style="font-weight:900;font-size:19px">${esc(w.n)}</div>
+    <div class="mut sm" style="margin-top:2px">${esc(w.d || w.notes || w.ex.map(e => exById(e[0]).n).slice(0, 3).join(', '))}</div>
+    <div class="sm" style="margin-top:8px;color:var(--acc);font-weight:800">⏱ ${mins} min · ${trim(w.ex, UI.tmins).length} exercises${w.v ? ' · ' + platform(w.v)[1] : ''}</div></div><span class="chev">›</span></button>`;
 }
+const GROUPS = [['Legs','🦵'],['Push','🏋️'],['Pull','🧗'],['Upper','💪'],['Arms','🦾'],['Full Body','🔥'],['Calisthenics','🤸'],['Travel','✈️']];
 const VIEWS = {
   train(){
-    const sp = SPLITS[S.settings.split], nextId = sp.seq[S.settings.pos % sp.seq.length], next = wById(nextId);
-    const day = (S.settings.pos % sp.seq.length) + 1;
-    let list = allWorkouts();
-    if (UI.cat === 'Mine') list = S.workouts; else if (UI.cat !== 'All') list = list.filter(w => w.cat === UI.cat);
-    return `<div class="row"><h1>Let's <em>train</em></h1><span class="sp"></span><button class="ib" data-a="settings">⚙️</button></div>
-      ${next ? `<div class="card hero tap" data-a="preview" data-id="${next.id}">
-        <div class="tag">Up next · Day ${day}/${sp.seq.length} · ${esc(sp.n)}</div>
-        <h3 style="font-size:28px;margin:6px 0">${esc(next.n)}</h3>
-        <div class="mut sm">${esc(next.d || '')}</div>
-        <div class="row" style="margin-top:14px"><button class="btn pri sp" data-a="quickstart" data-id="${next.id}">Start ▶</button><button class="btn" data-a="skipday">Skip</button></div></div>` : ''}
-      <h2>Workout library</h2>
-      <div class="chips">${['All', ...CATS, 'Mine'].map(c => `<button class="chip ${UI.cat === c ? 'on' : ''}" data-a="cat" data-v="${c}">${c === 'Travel' ? '✈️ ' : ''}${c}</button>`).join('')}</div>
-      ${UI.cat === 'Mine' || UI.cat === 'All' ? `<button class="btn wide" style="margin-bottom:12px" data-a="newworkout">＋ Build your own workout</button>` : ''}
-      ${UI.cat === 'Travel' ? `<div class="hint" style="margin-bottom:12px">✈️ No equipment needed. Hit <b>Shuffle</b> on any workout for a fresh mix.</div>` : ''}
+    const sp = SPLITS[S.settings.split], next = wById(sp.seq[S.settings.pos % sp.seq.length]);
+    if (!UI.group) {
+      const groups = S.workouts.length ? [...GROUPS, ['Mine','⭐']] : GROUPS;
+      return `<div class="row"><h1 class="sp">What are we <em>training?</em></h1><button class="ib" data-a="settings">⚙️</button></div>
+        ${next ? `<button class="card hero tap wcard" data-a="preview" data-id="${next.id}"><div class="sp" style="text-align:left"><div class="tag">Up next in your plan</div>
+          <div style="font-weight:900;font-size:20px;margin-top:4px">${esc(next.n)}</div></div><span class="go">▶</span></button>` : ''}
+        <div class="grid">${groups.map(([g, i]) => `<button class="tile" data-a="group" data-v="${g}"><span class="ti">${i}</span>${g}</button>`).join('')}</div>
+        <button class="btn wide ghost" style="margin-top:10px" data-a="newworkout">＋ Build your own workout</button>`;
+    }
+    const list = UI.group === 'Mine' ? S.workouts : allWorkouts().filter(w => w.cat === UI.group);
+    return `<button class="back" data-a="group" data-v="">‹ Back</button>
+      <h1>${esc(UI.group)}</h1>
+      <div class="tag" style="margin-bottom:8px">How long have you got?</div>
+      <div class="chips">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[0,'Any']].map(([m, l]) => `<button class="chip ${UI.tmins === m ? 'on' : ''}" data-a="tmins" data-v="${m}">${l}</button>`).join('')}</div>
       ${list.map(wCard).join('') || `<div class="empty"><div class="big">🧱</div>No workouts here yet.</div>`}`;
   },
   skills(){
@@ -183,7 +194,7 @@ function activeView(){
       <button class="ib" data-a="minimize">⌄</button>
       <div class="sp" style="min-width:0"><div style="font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(A.name)}</div><div class="timer" data-elapsed>${fmtT((Date.now() - A.start) / 1000)}</div></div>
       <button class="btn pri s" data-a="finish">Finish</button></div></div>
-    ${A.video ? `<a class="btn wide" style="margin-bottom:12px" href="${esc(A.video)}" target="_blank" rel="noopener">${platform(A.video)[1]} Watch the original video ↗</a>` : ''}
+    ${A.video ? (UI.showVid ? `${socialPlayer({v:A.video, embed:A.embed})}<button class="btn wide s" style="margin-bottom:12px" data-a="togvid">Hide video</button>` : `<button class="btn wide" style="margin-bottom:12px" data-a="togvid">${platform(A.video)[1]} Show the video</button>`) : ''}
     ${A.ex.map((e, i) => exCard(e, i)).join('')}
     <button class="btn wide" data-a="addex">＋ Add exercise</button>
     <button class="btn wide ghost danger" style="margin-top:8px" data-a="discard">Discard workout</button></div>`;
@@ -216,7 +227,7 @@ function startWorkout(w, list){
   if (S.active && !confirm(`You have "${S.active.name}" in progress. Replace it?`)) return;
   let items = list.map(x => [...x]);
   if (w.cat === 'Calisthenics') items = [...S.pinned.map(skillEntry), ...items];
-  S.active = {id:uid(), name:w.n, src:w.id, video:w.v || '', start:Date.now(), ex:items.map(x => mkEx(...x))};
+  S.active = {id:uid(), name:w.n, src:w.id, video:w.v || '', embed:w.embed || '', start:Date.now(), ex:items.map(x => mkEx(...x))};
   UI.showActive = true; UI.modal = null; save(); render();
 }
 
@@ -273,7 +284,7 @@ const MODALS = {
     const P = UI.P, w = P.w, travel = w.cat === 'Travel';
     const list = trim(P.list, P.mins);
     return `<div class="tag">${esc(w.cat)}</div><h3>${esc(w.n)}</h3><div class="mut sm">${esc(w.d || w.notes || '')}</div>
-      ${w.v ? `<a class="btn wide s" style="margin-top:10px" href="${esc(w.v)}" target="_blank" rel="noopener">${platform(w.v)[1]} Watch video ↗</a>` : ''}
+      ${w.v ? `<div style="margin-top:12px">${socialPlayer(w)}</div>` : ''}
       <div class="chips" style="margin-top:14px">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[0,`Full ~${estMin(P.list)}m`]].map(([m, l]) => `<button class="chip ${P.mins === m ? 'on' : ''}" data-a="mins" data-v="${m}">${l}</button>`).join('')}</div>
       <div>${list.map(([id, s, r, rest], i) => { const x = exById(id), alt = alternatives(id, travel).length;
         return `<div class="exl"><button data-a="form" data-id="${id}">${thumb(x, 44)}</button><div class="sp" style="min-width:0"><button data-a="form" data-id="${id}" style="font-weight:800;text-align:left">${esc(x.n)}</button>
@@ -286,6 +297,8 @@ const MODALS = {
     const E = UI.E;
     return `<h3>${E.id ? 'Edit workout' : E.v !== undefined ? 'Add video workout' : 'New workout'}</h3>
       ${E.v !== undefined ? `<div class="field"><label>TikTok / Instagram link</label><div class="row"><input id="f_v" value="${esc(E.v)}" placeholder="https://www.tiktok.com/…" data-ef="v"><button class="btn s" data-a="paste">Paste</button></div></div>` : ''}
+      ${E.v !== undefined ? `<div class="field"><label>Caption: we'll pick out the exercises</label><textarea rows="3" data-ef="cap" placeholder="TikTok: filled in automatically. Instagram: tap the caption, copy it and paste it here.">${esc(E.cap || '')}</textarea>
+        <button class="btn wide s pk" style="margin-top:8px" data-a="findex">🔎 Find exercises in caption</button></div>` : ''}
       <div class="field"><label>Name</label><input value="${esc(E.n)}" placeholder="e.g. Glute burner from @coach" data-ef="n"></div>
       <div class="field"><label>Category</label><select data-ef="cat">${CATS.map(c => `<option ${E.cat === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
       <div class="field"><label>Notes</label><textarea rows="2" data-ef="notes" placeholder="Cues, tempo, anything from the video">${esc(E.notes)}</textarea></div>
@@ -358,10 +371,11 @@ const MODALS = {
     const cues = CUES[x.id] || (x.skill && SKILL_CUES[x.skill]) || null;
     return `<div class="tag">${esc(PATTERNS[x.p] || '')}</div><h3>${esc(x.n)}</h3>
       <div class="sm mut" style="margin-bottom:12px">${esc(info ? info.mus.join(', ') : x.m || '')}</div>
-      ${k ? `<div class="demo"><img src="img/${k}-0.jpg" alt=""><img class="b" src="img/${k}-1.jpg" alt=""><span class="lbl">START ⇄ FINISH</span></div>` : ''}
+      ${VIDEOS[x.id] && navigator.onLine ? player(`https://www.youtube-nocookie.com/embed/${VIDEOS[x.id]}?playsinline=1&rel=0&modestbranding=1`) : ''}
+      ${k ? `${VIDEOS[x.id] && navigator.onLine ? '<h2>Start & finish position</h2>' : ''}<div class="demo"><img src="img/${k}-0.jpg" alt=""><img class="b" src="img/${k}-1.jpg" alt=""><span class="lbl">START ⇄ FINISH</span></div>` : ''}
       ${cues ? `<h2>${info ? 'Key points' : 'How to do it'}</h2><ol class="howto">${cues.map(c => `<li>${esc(c)}</li>`).join('')}</ol>` : ''}
       ${info ? `<h2>Step by step</h2><ol class="howto">${info.steps.map(c => `<li>${esc(c)}</li>`).join('')}</ol>` : ''}
-      ${!k && !cues ? `<div class="empty"><div class="big">💪</div>No demo for this one yet.</div>` : ''}
+      ${!k && !cues && !VIDEOS[x.id] ? `<div class="empty"><div class="big">💪</div>No demo for this one yet.</div>` : ''}
       ${x.link ? `<a class="btn wide" style="margin-top:12px" href="${esc(x.link)}" target="_blank" rel="noopener">${platform(x.link)[1]} Watch your saved video ↗</a>` : ''}
       <button class="btn wide" style="margin-top:14px" data-a="formback">${UI.formBack ? '← Back' : 'Close'}</button>`;
   },
@@ -381,6 +395,48 @@ const MODALS = {
       <button class="btn wide ghost danger" style="margin-top:16px" data-a="reset">Erase all data</button>`;
   },
 };
+// --- caption → exercises, plain keyword matching (no AI) ---
+const ALIASES = {rdl:['rdl','stiff leg deadlift'],hipthrust:['glute bridge','barbell glute bridge'],bss:['split squat','bulgarian'],pullup:['pull up','pullup'],
+  chinup:['chinup'],pushup:['pushup','press up'],squat:['squat','barbell squat'],dl:['deadlift','conventional deadlift'],wlunge:['lunge','dumbbell lunge'],
+  bbcurl:['bicep curl','biceps curl','curl'],pulldown:['pulldown','pull down'],bbrow:['bent over row','row'],cablerow:['cable row'],dbohp:['shoulder press','dumbbell press'],
+  ohp:['ohp','military press'],bench:['bench'],incdb:['incline press'],fly:['chest fly','fly','flye'],pushdown:['pushdown','tricep pushdown'],
+  skull:['skullcrusher'],calf:['calf raise'],legcurl:['leg curl','hamstring curl'],gobsq:['sumo squat'],kbswing:['kb swing','swing'],
+  abduct:['abduction','hip abduction','abductor'],cabcrunch:['crunch'],legraise:['leg raise'],hkr:['knee raise'],mclimb:['mountain climber'],
+  lat:['side raise','lateral'],facepull:['facepull'],dip:['dips'],farmer:['farmer walk','farmers walk'],backext:['hyperextension','back extension'],
+  sleglcurl:['seated hamstring curl'],legext:['quad extension'],stepup:['step up','stepup'],jumpsq:['squat jump'],burpee:['burpee']};
+const sing = w => w.length <= 3 ? w : /(ch|sh|ss|x)es$/.test(w) ? w.slice(0, -2) : /[^s]s$/.test(w) ? w.slice(0, -1) : w;
+const norm = t => ' ' + t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').map(sing).join(' ').trim() + ' ';
+let VARIANTS = null;
+function variants(){
+  if (VARIANTS) return VARIANTS;
+  const m = new Map();
+  const add = (v, id) => { v = norm(v).trim(); if (v && !m.has(v)) m.set(v, id); };
+  [...S.exercises, ...EXERCISES].forEach(e => { add(e.n, e.id); add(e.n.replace(/\(.*?\)/g, ''), e.id); });
+  Object.entries(ALIASES).forEach(([id, vs]) => vs.forEach(v => add(v, id)));
+  return VARIANTS = [...m.entries()].sort((a, b) => b[0].length - a[0].length);
+}
+function addFromCaption(text){
+  const orig = norm(text); let t = orig; const found = [];
+  for (const [v, id] of variants()) {
+    if (!t.includes(' ' + v + ' ')) continue;
+    if (!found.some(f => f.id === id)) found.push({id, pos:orig.indexOf(' ' + v + ' ')});
+    t = t.split(' ' + v + ' ').join(' | ');
+  }
+  const have = new Set(UI.E.list.map(r => r[0])); let n = 0;
+  found.sort((a, b) => a.pos - b.pos).forEach(({id}) => { if (!have.has(id)) { UI.E.list.push([id, 3, exById(id).t === 's' ? '30s' : '10-12', 90]); n++; } });
+  return n;
+}
+async function lookupVideo(){
+  const E = UI.E, u = (E.v || '').trim(); if (!/tiktok\.com/.test(u)) { if (!E.n) E.n = platform(u)[0] + ' workout'; render(); return; }
+  try {
+    const r = await (await fetch('https://www.tiktok.com/oembed?url=' + encodeURIComponent(u))).json();
+    const vid = /data-video-id="(\d+)"/.exec(r.html || '');
+    if (vid) E.embed = `https://www.tiktok.com/player/v1/${vid[1]}?loop=1&rel=0`;
+    E.cap = r.title || E.cap; if (!E.n) E.n = (r.title || '').replace(/#\S+/g, '').trim().slice(0, 40) || `@${r.author_unique_id || 'tiktok'} workout`;
+    const n = addFromCaption(E.cap || ''); toast(n ? `Found ${n} exercise${n > 1 ? 's' : ''} in the caption ✓` : 'Video found. Add the exercises with ＋');
+  } catch(e) { toast('Could not read the TikTok. Add exercises manually'); }
+  render();
+}
 function pickList(){
   const q = UI.q.trim().toLowerCase();
   let list = [...S.exercises, ...EXERCISES];
@@ -402,14 +458,15 @@ function render(){
 }
 const open = m => { UI.modal = m; render(); };
 const close = () => { UI.modal = null; render(); };
-function openPreview(w){ UI.P = {w, list:w.ex.map(x => [...x]), mins:0}; open('preview'); }
+function openPreview(w){ UI.P = {w, list:w.ex.map(x => [...x]), mins:UI.tmins}; open('preview'); }
 function openEditor(base){ UI.E = {id:'', n:'', cat:'Upper', notes:'', list:[], ...JSON.parse(JSON.stringify(base || {}))}; open('editor'); }
 function openPicker(mode, from){ UI.pick = {mode, from}; UI.q = ''; open('picker'); }
 
 // ---------- actions ----------
 const A = {
   tab: el => { UI.tab = el.dataset.v; window.scrollTo(0, 0); render(); },
-  cat: el => { UI.cat = el.dataset.v; render(); },
+  group: el => { UI.group = el.dataset.v; window.scrollTo(0, 0); render(); },
+  tmins: el => { UI.tmins = +el.dataset.v; render(); },
   preview: el => openPreview(wById(el.dataset.id)),
   quickstart: el => { const w = wById(el.dataset.id); startWorkout(w, w.ex); },
   skipday: () => { S.settings.pos++; save(); render(); },
@@ -431,12 +488,13 @@ const A = {
   newworkout: () => { openEditor({cat:'Upper'}); },
   newvideo: () => { openEditor({v:'', cat:'Full Body'}); },
   edit: el => { const w = S.workouts.find(x => x.id === el.dataset.id); openEditor({...w, list:w.ex}); if (!w.v) delete UI.E.v; render(); },
-  paste: async () => { try { const t = await navigator.clipboard.readText(); UI.E.v = t.trim(); if (!UI.E.n) UI.E.n = platform(UI.E.v)[0] + ' workout'; render(); } catch(e) { toast('Long-press the field and tap Paste'); } },
+  paste: async () => { try { const t = await navigator.clipboard.readText(); UI.E.v = t.trim(); render(); lookupVideo(); } catch(e) { toast('Long-press the field and tap Paste'); } },
+  findex: () => { const n = addFromCaption(UI.E.cap || ''); toast(n ? `Added ${n} exercise${n > 1 ? 's' : ''} ✓` : 'No known exercises found. Add them with ＋'); render(); },
   eadd: () => openPicker('editor'),
   erm: el => { UI.E.list.splice(+el.dataset.i, 1); render(); },
   esave: () => {
     const E = UI.E; if (!E.n.trim()) return toast('Give it a name');
-    const w = {id:E.id || 'u' + uid(), n:E.n.trim(), cat:E.cat, notes:E.notes, d:E.notes, ex:E.list, custom:true}; if (E.v !== undefined) w.v = E.v.trim();
+    const w = {id:E.id || 'u' + uid(), n:E.n.trim(), cat:E.cat, notes:E.notes, d:E.notes, ex:E.list, custom:true}; if (E.v !== undefined) { w.v = E.v.trim(); w.embed = E.embed || ''; w.cap = E.cap || ''; }
     const i = S.workouts.findIndex(x => x.id === w.id); if (i >= 0) S.workouts[i] = w; else S.workouts.unshift(w);
     save(); toast('Saved ✓'); openPreview(w);
   },
@@ -456,6 +514,7 @@ const A = {
     S.exercises.unshift(x); save(); A.pickex({dataset:{id:x.id}});
   },
   // active workout
+  togvid: () => { UI.showVid = !UI.showVid; render(); },
   resume: () => { UI.showActive = true; render(); },
   minimize: () => { UI.showActive = false; render(); },
   addex: () => openPicker('active'),
@@ -529,6 +588,7 @@ document.addEventListener('input', ev => {
 });
 document.addEventListener('change', ev => {
   if (ev.target.dataset.set) { render(); return; }
+  if (ev.target.dataset.ef === 'v') { lookupVideo(); return; }
   if (ev.target.id !== 'imp') return;
   const f = ev.target.files[0]; if (!f) return;
   f.text().then(t => { const d = JSON.parse(t); if (!d.history) throw 0; if (confirm(`Import backup with ${d.history.length} workouts? This replaces current data.`)) { S = {...defaults(), ...d}; save(); close(); toast('Imported ✓'); } })
