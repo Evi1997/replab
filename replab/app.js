@@ -107,7 +107,7 @@ function beep(){
 
 // ---------- views ----------
 function tabbar(){
-  const tabs = [['train','🏋️','Train'],['skills','⭐','Skills'],['videos','🎬','Videos'],['history','📈','Progress']];
+  const tabs = [['train','🏋️','Train'],['skills','⭐','Skills'],['history','📈','Progress']];
   return `<nav class="tabbar">${tabs.map(([k, i, l]) => `<button class="${UI.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}"><span class="i">${i}</span>${l}</button>`).join('')}</nav>`;
 }
 function resumeBar(){
@@ -164,19 +164,6 @@ const VIEWS = {
           ${S.pinned.includes(sk.id) ? '<span class="pill a">📌</span>' : ''}</div>
           <div class="bar"><i style="width:${Math.round(lv / n * 100)}%"></i></div></div>`;
       }).join('')}`;
-  },
-  videos(){
-    const vids = S.workouts.filter(w => w.v);
-    return `<h1>Saved <em>videos</em></h1>
-      <p class="mut" style="margin-top:-8px">Saw a workout on TikTok or Instagram? Copy the link, paste it here, and add the exercises. You can mix it with any other workout.</p>
-      <button class="btn pri wide" style="margin-bottom:16px" data-a="newvideo">＋ Add from TikTok / Instagram</button>
-      ${vids.map(w => { const [pn, pi] = platform(w.v); return `<div class="card">
-        <div class="row"><span class="pill p">${pi} ${pn}</span><span class="pill">${esc(w.cat)}</span><span class="sp"></span><a class="btn s" href="${esc(w.v)}" target="_blank" rel="noopener">Watch ↗</a></div>
-        <h3 style="margin:8px 0 4px">${esc(w.n)}</h3>
-        ${w.notes ? `<div class="sm mut">${esc(w.notes)}</div>` : ''}
-        <div class="sm mut" style="margin-top:4px">${w.ex.length ? esc(w.ex.map(e => exById(e[0]).n).join(' · ')) : '<span class="pink">No exercises added yet</span>'}</div>
-        <div class="row" style="margin-top:12px"><button class="btn pri s sp" data-a="preview" data-id="${w.id}">Open</button><button class="btn s" data-a="mix" data-id="${w.id}">🔀 Mix with…</button><button class="btn s" data-a="edit" data-id="${w.id}">Edit</button></div></div>`; }).join('')
-      || `<div class="empty"><div class="big">🎬</div>No saved videos yet.<br><span class="sm">Tip: in TikTok/Instagram tap Share → Copy link.</span></div>`}`;
   },
   history(){
     const now = new Date(), monday = new Date(now); monday.setHours(0,0,0,0); monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
@@ -314,9 +301,7 @@ const MODALS = {
   editor(){
     const E = UI.E;
     return `<h3>${E.id ? 'Edit workout' : E.v !== undefined ? 'Add video workout' : 'New workout'}</h3>
-      ${E.v !== undefined ? `<div class="field"><label>TikTok / Instagram link</label><div class="row"><input id="f_v" value="${esc(E.v)}" placeholder="https://www.tiktok.com/…" data-ef="v"><button class="btn s" data-a="paste">Paste</button></div></div>` : ''}
-      ${E.v !== undefined ? `<div class="field"><label>Caption: we'll pick out the exercises</label><textarea rows="3" data-ef="cap" placeholder="TikTok: filled in automatically. Instagram: tap the caption, copy it and paste it here.">${esc(E.cap || '')}</textarea>
-        <button class="btn wide s pk" style="margin-top:8px" data-a="findex">🔎 Find exercises in caption</button></div>` : ''}
+      ${E.v !== undefined ? `<div class="field"><label>TikTok / Instagram link</label><div class="row"><input id="f_v" value="${esc(E.v)}" placeholder="https://www.tiktok.com/…" data-ef="v"></div></div>` : ''}
       <div class="field"><label>Name</label><input value="${esc(E.n)}" placeholder="e.g. Glute burner from @coach" data-ef="n"></div>
       <div class="field"><label>Category</label><select data-ef="cat">${CATS.map(c => `<option ${E.cat === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
       <div class="field"><label>Notes</label><textarea rows="2" data-ef="notes" placeholder="Cues, tempo, anything from the video">${esc(E.notes)}</textarea></div>
@@ -413,7 +398,7 @@ const MODALS = {
       <div class="field"><label>Weekly split (Up next)</label><select data-set="split"><option value="coach" ${st.split === 'coach' ? 'selected' : ''}>Coach plan (from your goal)</option>${Object.entries(SPLITS).map(([k, v]) => `<option value="${k}" ${st.split === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select></div>
       <div class="field"><label>Default weight jump (kg)</label><input inputmode="decimal" data-set="inc" value="${st.inc}"></div>
       <button class="btn wide" data-a="editprofile">✏️ Goal, body & training details</button>
-      <h2>TikTok / Instagram import helper</h2><p class="sm mut">Optional. Paste your Cloudflare helper link to auto-read short TikTok links and Instagram captions.</p>
+      <h2>AI coach helper</h2><p class="sm mut">Your free Cloudflare helper link. It powers the AI chat coach (free daily allowance). Without it the coach uses built-in rules.</p>
       <input data-set="helper" value="${esc(st.helper || '')}" placeholder="https://replab-import.yourname.workers.dev">
       ${accountSection()}
       <h2>Backup</h2><p class="sm mut">Your data lives only on this phone. Export a backup now and then (e.g. save to Files or AirDrop it to your Mac).</p>
@@ -423,60 +408,6 @@ const MODALS = {
       <p class="sm mut" style="text-align:center;margin-top:14px">Screen ${screen.width}×${screen.height} · view ${innerWidth}×${innerHeight} · ${navigator.standalone ? 'home screen' : 'browser'}</p>`;
   },
 };
-// --- caption → exercises, plain keyword matching (no AI) ---
-const ALIASES = {rdl:['rdl','stiff leg deadlift'],hipthrust:['glute bridge','barbell glute bridge'],bss:['split squat','bulgarian'],pullup:['pull up','pullup'],
-  chinup:['chinup'],pushup:['pushup','press up'],squat:['squat','barbell squat'],dl:['deadlift','conventional deadlift'],wlunge:['lunge','dumbbell lunge'],
-  bbcurl:['bicep curl','biceps curl','curl'],pulldown:['pulldown','pull down'],bbrow:['bent over row','row'],cablerow:['cable row'],dbohp:['shoulder press','dumbbell press'],
-  ohp:['ohp','military press'],bench:['bench'],incdb:['incline press'],fly:['chest fly','fly','flye'],pushdown:['pushdown','tricep pushdown'],
-  skull:['skullcrusher'],calf:['calf raise'],legcurl:['leg curl','hamstring curl'],gobsq:['sumo squat'],kbswing:['kb swing','swing'],
-  abduct:['abduction','hip abduction','abductor'],cabcrunch:['crunch'],legraise:['leg raise'],hkr:['knee raise'],mclimb:['mountain climber'],
-  lat:['side raise','lateral'],facepull:['facepull'],dip:['dips'],farmer:['farmer walk','farmers walk'],backext:['hyperextension','back extension'],
-  sleglcurl:['seated hamstring curl'],legext:['quad extension'],stepup:['step up','stepup'],jumpsq:['squat jump'],burpee:['burpee']};
-const sing = w => w.length <= 3 ? w : /(ch|sh|ss|x)es$/.test(w) ? w.slice(0, -2) : /[^s]s$/.test(w) ? w.slice(0, -1) : w;
-const norm = t => ' ' + t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').map(sing).join(' ').trim() + ' ';
-let VARIANTS = null;
-function variants(){
-  if (VARIANTS) return VARIANTS;
-  const m = new Map();
-  const add = (v, id) => { v = norm(v).trim(); if (v && !m.has(v)) m.set(v, id); };
-  [...S.exercises, ...EXERCISES].forEach(e => { add(e.n, e.id); add(e.n.replace(/\(.*?\)/g, ''), e.id); });
-  Object.entries(ALIASES).forEach(([id, vs]) => vs.forEach(v => add(v, id)));
-  return VARIANTS = [...m.entries()].sort((a, b) => b[0].length - a[0].length);
-}
-function addFromCaption(text){
-  const orig = norm(text); let t = orig; const found = [];
-  for (const [v, id] of variants()) {
-    if (!t.includes(' ' + v + ' ')) continue;
-    if (!found.some(f => f.id === id)) found.push({id, pos:orig.indexOf(' ' + v + ' ')});
-    t = t.split(' ' + v + ' ').join(' | ');
-  }
-  const have = new Set(UI.E.list.map(r => r[0])); let n = 0;
-  found.sort((a, b) => a.pos - b.pos).forEach(({id}) => { if (!have.has(id)) { UI.E.list.push([id, 3, exById(id).t === 's' ? '30s' : '10-12', 90]); n++; } });
-  return n;
-}
-async function lookupVideo(){
-  const E = UI.E, u = (E.v || '').trim(), helper = (S.settings.helper || '').replace(/\/$/, '');
-  const isTT = /tiktok\.com/.test(u), isIG = /instagram\.com/.test(u), full = /tiktok\.com\/@[^/]*\/video\/\d+/.test(u);
-  if (helper && (isTT || isIG)) {
-    try {
-      toast('Reading video…');
-      const r = await (await fetch(helper + '/?url=' + encodeURIComponent(u))).json(); if (r.error) throw 0;
-      if (r.id) E.embed = `https://www.tiktok.com/player/v1/${r.id}?loop=1&rel=0`;
-      E.cap = r.caption || E.cap; if (!E.n) E.n = (r.caption || '').replace(/#\S+/g, '').trim().slice(0, 40) || `${platform(u)[0]} workout`;
-      const n = addFromCaption(E.cap || ''); toast(n ? `Found ${n} exercise${n > 1 ? 's' : ''} ✓` : r.caption ? 'No exercises named in the caption. Add them with ＋' : 'Couldn\'t read the caption. Paste it below');
-    } catch(e) { toast('Couldn\'t read it. Paste the caption below'); }
-    return render();
-  }
-  if (!isTT || !full) { if (!E.n) E.n = platform(u)[0] + ' workout'; if (isTT || isIG) toast(isTT ? 'Short TikTok link: paste the caption below (or set up the import helper in ⚙️)' : 'Instagram: copy the caption and paste it below'); render(); return; }
-  try {
-    const r = await (await fetch('https://www.tiktok.com/oembed?url=' + encodeURIComponent(u))).json();
-    const vid = /data-video-id="(\d+)"/.exec(r.html || '');
-    if (vid) E.embed = `https://www.tiktok.com/player/v1/${vid[1]}?loop=1&rel=0`;
-    E.cap = r.title || E.cap; if (!E.n) E.n = (r.title || '').replace(/#\S+/g, '').trim().slice(0, 40) || `@${r.author_unique_id || 'tiktok'} workout`;
-    const n = addFromCaption(E.cap || ''); toast(n ? `Found ${n} exercise${n > 1 ? 's' : ''} in the caption ✓` : 'Video found. Add the exercises with ＋');
-  } catch(e) { toast('Could not read the TikTok. Add exercises manually'); }
-  render();
-}
 function pickList(){
   const q = UI.q.trim().toLowerCase();
   let list = [...S.exercises, ...EXERCISES];
@@ -541,10 +472,7 @@ const A = {
   start: () => { const P = UI.P; startWorkout(P.w, [...trim(P.list, P.mins), ...(P.fin ? FINISHER() : [])]); },
   fin: () => { UI.P.fin = !UI.P.fin; render(); },
   newworkout: () => { openEditor({cat:'Upper'}); },
-  newvideo: () => { openEditor({v:'', cat:'Full Body'}); },
   edit: el => { const w = S.workouts.find(x => x.id === el.dataset.id); openEditor({...w, list:w.ex}); if (!w.v) delete UI.E.v; render(); },
-  paste: async () => { try { const t = await navigator.clipboard.readText(); UI.E.v = t.trim(); render(); lookupVideo(); } catch(e) { toast('Long-press the field and tap Paste'); } },
-  findex: () => { const n = addFromCaption(UI.E.cap || ''); toast(n ? `Added ${n} exercise${n > 1 ? 's' : ''} ✓` : 'No known exercises found. Add them with ＋'); render(); },
   eadd: () => openPicker('editor'),
   erm: el => { UI.E.list.splice(+el.dataset.i, 1); render(); },
   esave: () => {
@@ -615,7 +543,7 @@ const A = {
   formback: () => { const b = UI.formBack; UI.formBack = null; b ? open(b) : close(); },
   coach: () => open('coach'),
   chat: () => { if (!UI.chat) chatStart(); open('chat'); },
-  chatq: el => { chatInput(el.textContent, el.dataset.k); if (UI.modal === 'chat') render(); },
+  chatq: el => { const k = el.dataset.k; if (k.startsWith('ai:')) chatInput(k.slice(3)); else chatInput(el.textContent, k); if (UI.modal === 'chat') render(); },
   chatsend: () => { const i = $('#chatin'); const t = i.value; i.value = ''; chatInput(t); if (UI.modal === 'chat') { render(); $('#chatin')?.focus(); } },
   programs: () => open('programs'),
   progstart: el => { if (S.program && !confirm('Replace your current program?')) return; S.program = {id:el.dataset.id, start:Date.now(), done:0}; save(); close(); toast('Program started 💪'); },
@@ -691,7 +619,6 @@ document.addEventListener('input', ev => {
 });
 document.addEventListener('change', ev => {
   if (ev.target.dataset.set) { render(); return; }
-  if (ev.target.dataset.ef === 'v') { lookupVideo(); return; }
   if (ev.target.id !== 'imp') return;
   const f = ev.target.files[0]; if (!f) return;
   f.text().then(t => { const d = JSON.parse(t); if (!d.history) throw 0; if (confirm(`Import backup with ${d.history.length} workouts? This replaces current data.`)) { S = {...defaults(), ...d}; save(); close(); toast('Imported ✓'); } })
