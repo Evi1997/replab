@@ -401,7 +401,8 @@ const MODALS = {
       <h2>Backup</h2><p class="sm mut">Your data lives only on this phone. Export a backup now and then (e.g. save to Files or AirDrop it to your Mac).</p>
       <button class="btn wide" data-a="export">⬇ Export backup</button>
       <label class="btn wide" style="margin-top:8px">⬆ Import backup<input type="file" accept="application/json,.json" id="imp" hidden></label>
-      <button class="btn wide ghost danger" style="margin-top:16px" data-a="reset">Erase all data</button>`;
+      <button class="btn wide ghost danger" style="margin-top:16px" data-a="reset">Erase all data</button>
+      <p class="sm mut" style="text-align:center;margin-top:14px">Screen ${screen.width}×${screen.height} · view ${innerWidth}×${innerHeight} · ${navigator.standalone ? 'home screen' : 'browser'}</p>`;
   },
 };
 // --- caption → exercises, plain keyword matching (no AI) ---
@@ -681,6 +682,20 @@ document.addEventListener('touchend', e => {
 // iOS sometimes leaves the page shifted after the keyboard closes
 document.addEventListener('focusout', () => setTimeout(() => window.scrollTo(0, 0), 50));
 
+// iPhone Home Screen apps can report a viewport shorter than the screen, leaving a black strip under the tab bar.
+// When that happens, size the app to the real screen height instead.
+function fitScreen(){
+  const app = $('#app'), portrait = innerHeight > innerWidth, standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  const full = portrait ? screen.height : screen.width;
+  const short = standalone && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA' && full - innerHeight > 20;
+  app.style.bottom = short ? 'auto' : ''; app.style.height = short ? full + 'px' : '';
+  document.documentElement.style.height = document.body.style.height = short ? full + 'px' : '';
+}
+['resize', 'orientationchange', 'pageshow'].forEach(e => addEventListener(e, () => setTimeout(fitScreen, 60)));
+document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(fitScreen, 60); });
+document.addEventListener('focusout', () => setTimeout(fitScreen, 120));
+
 render();
+fitScreen();
 syncOnOpen();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
