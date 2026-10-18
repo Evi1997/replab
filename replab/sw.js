@@ -1,6 +1,6 @@
 // Offline cache. Bump VERSION whenever app files change so phones pick up the update.
-const VERSION = 'replab-v14';
-const FILES = ['./', 'index.html', 'app.js', 'data.js', 'demos.js', 'cloud.js', 'coach.js', 'gen.js', 'program.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+const VERSION = 'replab-v15';
+const FILES = ['./', 'index.html', 'app.js', 'data.js', 'demos.js', 'cloud.js', 'coach.js', 'gen.js', 'program.js', 'chat.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 importScripts('demos.js');
 const IMAGES = [...new Set(Object.values(DEMO_MAP))].flatMap(k => [`img/${k}-0.jpg`, `img/${k}-1.jpg`]);
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES))); self.skipWaiting(); });

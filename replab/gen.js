@@ -63,12 +63,12 @@ const swapRow = (id, act, i, taken = []) => { const x = exById(id); if (!needsMa
   const opts = Object.entries(SWAP_KINDS).map(([k, v]) => [k, v, swapFor(id, k, taken)]).filter(o => o[2]);
   return opts.length ? `<div class="swaprow"><span class="sm mut">No ${x.e === 'cable' ? 'cable' : 'machine'}?</span>${opts.map(([k, v, e]) => `<button class="chip s" data-a="${act}" data-i="${i}" data-v="${e.id}" title="${esc(e.n)}">${v.n}</button>`).join('')}</div>` : ''; };
 
-function generateWorkout(cat, equip, seed, format = 'classic'){
+function generateWorkout(cat, equip, seed, format = 'classic', opts = {}){
   const rand = seededRandom(seed), used = new Set(), list = [];
   const recent = new Set(S.history.slice(-3).flatMap(h => h.ex.map(e => e.id)));
   const heavy = equip === 'gym' || equip === 'db';
   (TEMPLATES[cat] || TEMPLATES['Full Body']).forEach((slot, i) => {
-    let pool = EXERCISES.filter(e => slot.includes(e.p) && EQUIP[equip].ok(e) && !used.has(e.id));
+    let pool = EXERCISES.filter(e => slot.includes(e.p) && EQUIP[equip].ok(e) && !used.has(e.id) && !(opts.avoid && opts.avoid(e)));
     const main = i < 2 && !['Core','Cardio'].includes(cat);
     if (main && heavy) { const loaded = pool.filter(e => e.t === 'w'); if (loaded.length) pool = loaded; }
     const fresh = pool.filter(e => !recent.has(e.id)); if (fresh.length) pool = fresh;
