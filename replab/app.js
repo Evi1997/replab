@@ -121,7 +121,7 @@ function wCard(w){
     <div class="mut sm" style="margin-top:2px">${esc(w.d || w.notes || w.ex.map(e => exById(e[0]).n).slice(0, 3).join(', '))}</div>
     <div class="sm" style="margin-top:8px;color:var(--acc);font-weight:800">⏱ ${mins} min · ${trim(w.ex, UI.tmins).length} exercises${w.v ? ' · ' + platform(w.v)[1] : ''}</div></div><span class="chev">›</span></button>`;
 }
-const GROUPS = [['Legs','🦵'],['Glutes','🍑'],['Push','🏋️'],['Pull','🧗'],['Upper','💪'],['Arms','🦾'],['Full Body','🔥'],['Core','🧱'],['Cardio','❤️'],['Calisthenics','🤸'],['Travel','✈️']];
+const GROUPS = [['Legs','🦵'],['Glutes','🍑'],['Push','🏋️'],['Pull','🧗'],['Upper','💪'],['Arms','🦾'],['Full Body','🔥'],['Core','🎯'],['Cardio','❤️'],['Calisthenics','🤸'],['Travel','✈️']];
 const VIEWS = {
   train(){
     const seq = planSeq(), next = wById(seq[S.settings.pos % seq.length]), g = S.profile && GOALS[S.profile.goal];
