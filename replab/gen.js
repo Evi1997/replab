@@ -54,11 +54,53 @@ const RELATED = {squat:['lunge','quad'], lunge:['squat','glute'], hinge:['glute'
   latraise:['vpush'], reardelt:['hpull'], vpull:['hpull'], hpull:['vpull'], calf:[], traps:['hpull'], scap:['vpull'], core:['corehold'], corehold:['core'], dip:['hpush','triceps'], triceps:['dip','hpush'], biceps:['vpull']};
 const EQN = {bb:'Barbell', db:'Dumbbells', kb:'Kettlebell', mach:'Machine', cable:'Cable', bar:'Pull-up bar', bw:'Bodyweight'};
 const EQ_FILTERS = {all:['All', () => true], db:['Dumbbells', e => ['db','kb'].includes(e.e)], bw:['Bodyweight', e => e.e === 'bw' || e.e === 'bar'], bb:['Barbell', e => e.e === 'bb'], mach:['Machine', e => e.e === 'mach'], cable:['Cable', e => e.e === 'cable']};
-// every sensible replacement: same movement first, then related movements
+// Coach-curated equivalents: same main muscles and training effect, best first.
+// Used so a swap keeps the benefit of the original (e.g. leg press → goblet squat, not a glute-biased curtsy lunge).
+const EQUIV = {
+  legpress:['gobsq','bss','stepup','squat','fsquat','bwbss','bwsq','smithsq','hacksq'],
+  hacksq:['fsquat','gobsq','bss','squat','smithsq','legpress','bwbss','sissy'],
+  smithsq:['squat','gobsq','bss','fsquat','legpress','hacksq','bwbss'],
+  legext:['sissy','gobsq','bss','fsquat','wallsit','bwbss'],
+  legcurl:['nordic','sleglcurl','dbrdl','rdl','goodam','slrdl'],
+  sleglcurl:['nordic','legcurl','dbrdl','rdl','goodam','slrdl'],
+  abduct:['firehyd','curtsy','bss','sglute','kickback'],
+  kickback:['donkey','hipthrust','glutebr','sglute','bss'],
+  pullthru:['kbswing','dbrdl','rdl','hipthrust','glutebr','sglute'],
+  backext:['goodam','rdl','dbrdl','superman','slrdl'],
+  calf:['slcalf','scalf'], scalf:['slcalf','calf'],
+  mchest:['dbbench','bench','incdb','pushup','decline'],
+  fly:['dbfly','pecdeck','dbbench','pushup'], pecdeck:['dbfly','fly','dbbench','pushup'],
+  clat:['lat','uprow'], uprow:['lat','clat','shrug'],
+  pulldown:['pullup','chinup','dbpullover','dbrow','tablerow','towelrow'],
+  pullover:['dbpullover','pullup','pulldown','chinup'],
+  cablerow:['dbrow2','dbrow','csrow','bbrow','tbarrow','invrow','tablerow','towelrow','renegade'],
+  csrow:['dbrow2','dbrow','cablerow','bbrow','tbarrow','invrow','tablerow'],
+  facepull:['dbrear','ytw','rdelt'], rdelt:['dbrear','facepull','ytw'],
+  ccurl:['dbcurl','incurl','ezcurl','bbcurl','hammer','conc','chinup'],
+  preacher:['conc','dbcurl','ezcurl','bbcurl','incurl'],
+  pushdown:['tkick','diamond','ropepd','chairdip','skull','cgbench'],
+  ropepd:['tkick','pushdown','diamond','chairdip','skull'],
+  ohtri:['dbohtri','skull','tkick','diamond'],
+  cabcrunch:['legraise','vup','hkr','bicycle','abwheel'],
+  woodchop:['russian','bicycle','sideplank'], pallof:['sideplank','deadbug','shtaps'],
+  rower:['jumprope','burpee','mclimb','bike'], bike:['jumprope','highknees','mclimb','rower'],
+  inclinewalk:['stairs','highknees','jumprope'], stairs:['stepup','highknees','inclinewalk','jumprope'],
+  dip:['wdip','chairdip','pushup','diamond'], pullup:['chinup','pulldown','invrow','tablerow'], chinup:['pullup','pulldown','invrow'],
+};
+// main muscles of an exercise, from its description ("Quads, glutes" → ['quad','glute'])
+const musclesOf = x => (x.m || '').toLowerCase().split(/[,(]/).map(s => s.trim().replace(/s$/, '').replace(/^(upper|mid|lower|side|rear|front|long head)\s*/, '')).filter(Boolean);
+// rank every replacement: curated "same benefit" first, then same main muscle, then same movement, then the rest
 function swapOptions(id){
-  const x = exById(id), seen = new Set([id]), out = [];
-  for (const p of [x.p, ...(RELATED[x.p] || [])]) for (const e of [...S.exercises, ...EXERCISES]) if (e.p === p && !seen.has(e.id)) { seen.add(e.id); out.push({e, same:p === x.p}); }
-  return out;
+  const x = exById(id), mine = musclesOf(x), curated = EQUIV[id] || [], out = [], seen = new Set([id]);
+  curated.forEach((cid, k) => { const e = exById(cid); if (EXMAP[cid] && !seen.has(cid)) { seen.add(cid); out.push({e, tier:0, rank:k}); } });
+  for (const e of [...S.exercises, ...EXERCISES]) {
+    if (seen.has(e.id)) continue;
+    const theirs = musclesOf(e), samePrimary = mine[0] && theirs[0] === mine[0], overlap = theirs.filter(m => mine.includes(m)).length;
+    const related = [x.p, ...(RELATED[x.p] || [])].includes(e.p);
+    const tier = !curated.length && e.p === x.p && samePrimary ? 0 : (samePrimary || (e.p === x.p && overlap)) ? 1 : related ? 2 : null;
+    if (tier !== null) { seen.add(e.id); out.push({e, tier, rank:10 - overlap}); }
+  }
+  return out.sort((a, b) => a.tier - b.tier || a.rank - b.rank);
 }
 const needsMachine = x => x.e === 'mach' || x.e === 'cable';
 function swapFor(id, kind, taken = []){

@@ -379,12 +379,16 @@ const MODALS = {
     const taken = sw.ctx === 'a' ? S.active.ex.map(e => e.id) : UI.P.list.map(r => r[0]);
     const all = swapOptions(sw.orig || cur).filter(o => o.e.id !== cur);
     const counts = Object.fromEntries(Object.entries(EQ_FILTERS).map(([k, [, ok]]) => [k, all.filter(o => ok(o.e)).length]));
-    const shown = all.filter(o => EQ_FILTERS[sw.eq][1](o.e));
-    const row = o => `<button class="lrow" data-a="doswap" data-id="${o.e.id}">${thumb(o.e, 44)}<span class="lt"><b>${esc(o.e.n)}</b><span>${EQN[o.e.e] || ''}${o.same ? '' : ' · similar movement'}${taken.includes(o.e.id) ? ' · already in workout' : ''}</span></span><span class="lr">›</span></button>`;
-    return `<div class="tag">Swap exercise</div><h3>${esc(x.n)}</h3><div class="sm mut" style="margin-bottom:12px">Currently ${EQN[x.e] || ''}. Pick what you have, and you can swap again any time.</div>
+    const shown = all.filter(o => EQ_FILTERS[sw.eq][1](o.e)), orig = exById(sw.orig || cur);
+    const TIER = ['✓ Same benefit', 'Similar', 'Different focus'];
+    const row = o => `<button class="lrow" data-a="doswap" data-id="${o.e.id}">${thumb(o.e, 44)}<span class="lt"><b>${esc(o.e.n)}</b><span>${EQN[o.e.e] || ''} · ${esc(o.e.m || '')}${taken.includes(o.e.id) ? ' · in workout' : ''}</span></span><span class="lr">›</span></button>`;
+    const section = t => { const rows = shown.filter(o => o.tier === t); if (!rows.length) return '';
+      return t === 2 && !sw.more ? `<button class="btn wide ghost s" style="margin-top:8px" data-a="swapmore">Show ${rows.length} with a different focus</button>`
+        : `<h2 class="${t === 0 ? 'acc' : ''}">${TIER[t]}${t === 2 ? ' (works different muscles)' : ''}</h2><div class="group">${rows.map(row).join('')}</div>`; };
+    return `<div class="tag">Swap exercise</div><h3>${esc(x.n)}</h3><div class="sm mut" style="margin-bottom:12px">Trains ${esc((orig.m || '').toLowerCase())}. Options are ranked by how closely they match that benefit.</div>
       <div class="seg">${Object.entries(EQ_FILTERS).filter(([k]) => k === 'all' || counts[k]).map(([k, [n]]) => `<button class="${sw.eq === k ? 'on' : ''}" data-a="swapeqf" data-v="${k}">${n}</button>`).join('')}</div>
-      ${sw.orig && sw.orig !== cur ? `<div class="group" style="margin-top:12px"><button class="lrow" data-a="doswap" data-id="${sw.orig}">${thumb(exById(sw.orig), 44)}<span class="lt"><b>↩︎ ${esc(exById(sw.orig).n)}</b><span>Original exercise</span></span><span class="lr">›</span></button></div>` : ''}
-      ${shown.length ? `<div class="group" style="margin-top:12px">${shown.map(row).join('')}</div>` : `<div class="empty">No ${EQ_FILTERS[sw.eq][0].toLowerCase()} option for this movement.</div>`}
+      ${sw.orig && sw.orig !== cur ? `<div class="group" style="margin-top:12px"><button class="lrow" data-a="doswap" data-id="${sw.orig}">${thumb(orig, 44)}<span class="lt"><b>↩︎ ${esc(orig.n)}</b><span>Back to the original</span></span><span class="lr">›</span></button></div>` : ''}
+      ${shown.length ? section(0) + section(1) + section(2) : `<div class="empty">No ${EQ_FILTERS[sw.eq][0].toLowerCase()} option for this movement.</div>`}
       <button class="btn wide" style="margin-top:12px" data-a="swapsearch">🔎 Search all exercises</button>`;
   },
   coach: () => coachView(),
@@ -507,6 +511,7 @@ const A = {
     UI.sw = {ctx, i, eq:'all', orig:ctx === 'a' ? cur.orig : UI.P.orig[i]}; open('swap');
   },
   swapeqf: el => { UI.sw.eq = el.dataset.v; render(); },
+  swapmore: () => { UI.sw.more = true; render(); },
   doswap: el => { const {ctx, i} = UI.sw, id = el.dataset.id;
     if (ctx === 'a') { S.active.ex[i].id = id; save(); UI.modal = null; render(); } else { UI.P.list[i][0] = id; open('preview'); }
     toast('Swapped to ' + exById(id).n); },
