@@ -93,6 +93,14 @@ tr.done .chk{background:var(--acc);color:var(--accTxt);border-color:var(--acc)}
 .empty{text-align:center;padding:36px 16px;color:var(--mut)}
 .empty .big{font-size:44px}
 .pr{color:var(--acc2);font-weight:900}
+.thumb{flex:none;border-radius:12px;object-fit:cover;background:#fff;display:grid;place-items:center}
+.thumb.ph{background:var(--card2);font-size:20px}
+.demo{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:3/2;background:#fff}
+.demo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.demo img.b{animation:flip 2.6s ease-in-out infinite}
+@keyframes flip{0%,35%{opacity:0}50%,85%{opacity:1}100%{opacity:0}}
+.demo .lbl{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.7);color:var(--acc);font-size:11px;font-weight:900;letter-spacing:1px;padding:4px 8px;border-radius:8px}
+.howto{margin:0;padding-left:22px}.howto li{margin-bottom:8px;line-height:1.45}.howto li::marker{color:var(--acc);font-weight:900}
 </style>
 </head>
 <body>
@@ -101,6 +109,7 @@ tr.done .chk{background:var(--acc);color:var(--accTxt);border-color:var(--acc)}
 <div id="rest"></div>
 <div id="modal"></div>
 <script src="data.js"></script>
+<script src="demos.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

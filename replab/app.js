@@ -28,7 +28,8 @@ function exById(id){
   }
   return EXMAP[id] || S.exercises.find(e => e.id === id) || {id, n:id, p:'other', e:'bw', t:'w', m:''};
 }
-const howTo = x => x.link || `https://www.youtube.com/results?search_query=${encodeURIComponent(x.n + ' exercise proper form')}`;
+const demoKey = x => DEMO_MAP[x.id] || (x.skill ? DEMO_MAP[x.n] : null);
+const thumb = (x, size = 56) => { const k = demoKey(x); return k ? `<img class="thumb" style="width:${size}px;height:${size}px" src="img/${k}-1.jpg" alt="" loading="lazy">` : `<span class="thumb ph" style="width:${size}px;height:${size}px">${x.skill ? '⭐' : '💪'}</span>`; };
 const allWorkouts = () => [...S.workouts, ...WORKOUTS];
 const wById = id => allWorkouts().find(w => w.id === id);
 const estMin = list => Math.round(list.reduce((t, [, s, , r]) => t + s * (45 + (+r || 60)) + 60, 0) / 60);
@@ -192,7 +193,7 @@ function exCard(e, i){
   const kgL = x.t === 'w' ? 'KG' : '+KG', rL = x.t === 's' ? 'SEC' : 'REPS';
   const [lo] = range(e.reps);
   return `<div class="card">
-    <div class="row"><a href="${esc(howTo(x))}" target="_blank" rel="noopener" style="text-decoration:none;min-width:0" class="sp"><h3 style="font-size:18px">${esc(x.n)} <span class="acc sm">ⓘ</span></h3></a>
+    <div class="row"><button class="row sp" style="min-width:0;text-align:left" data-a="form" data-id="${e.id}">${thumb(x, 48)}<h3 style="font-size:18px">${esc(x.n)} <span class="acc sm">ⓘ</span></h3></button>
     <button class="ib" data-a="exmenu" data-i="${i}">⋯</button></div>
     <div class="sm mut">${e.sets.length} × ${esc(e.reps)} · rest ${fmtT(e.rest)}${x.m ? ' · ' + esc(x.m) : ''}</div>
     ${sug ? `<div class="hint">${sug.msg}</div>` : x.skill ? '' : `<div class="hint">First time: pick a weight you can do for <b>${esc(e.reps)}</b> with 1–2 reps left.</div>`}
@@ -275,7 +276,7 @@ const MODALS = {
       ${w.v ? `<a class="btn wide s" style="margin-top:10px" href="${esc(w.v)}" target="_blank" rel="noopener">${platform(w.v)[1]} Watch video ↗</a>` : ''}
       <div class="chips" style="margin-top:14px">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[0,`Full ~${estMin(P.list)}m`]].map(([m, l]) => `<button class="chip ${P.mins === m ? 'on' : ''}" data-a="mins" data-v="${m}">${l}</button>`).join('')}</div>
       <div>${list.map(([id, s, r, rest], i) => { const x = exById(id), alt = alternatives(id, travel).length;
-        return `<div class="exl"><span class="num">${i + 1}</span><div class="sp" style="min-width:0"><a href="${esc(howTo(x))}" target="_blank" rel="noopener" style="text-decoration:none;font-weight:800">${esc(x.n)}</a>
+        return `<div class="exl"><button data-a="form" data-id="${id}">${thumb(x, 44)}</button><div class="sp" style="min-width:0"><button data-a="form" data-id="${id}" style="font-weight:800;text-align:left">${esc(x.n)}</button>
         <div class="sm mut">${s} × ${esc(r)} · rest ${fmtT(rest)}</div></div>${alt ? `<button class="ib" data-a="swap" data-i="${i}">🔁</button>` : ''}</div>`; }).join('')}</div>
       ${w.cat === 'Calisthenics' && S.pinned.length ? `<div class="hint" style="margin-top:10px">📌 Plus your pinned skills: <b>${S.pinned.map(id => SKILLS.find(s => s.id === id).n).join(', ')}</b></div>` : ''}
       <div class="row" style="margin-top:14px"><button class="btn s sp" data-a="shuffle">🎲 Shuffle</button><button class="btn s sp" data-a="customize">✏️ Customize</button>${w.custom ? `<button class="btn s" data-a="edit" data-id="${w.id}">Edit</button>` : ''}</div>
@@ -312,7 +313,7 @@ const MODALS = {
       <div class="row" style="margin:12px 0"><span class="mut sm sp">Rest between sets</span>${[60,90,120,180].map(r => `<button class="chip ${e.rest === r ? 'on' : ''}" data-a="setrest" data-v="${r}">${fmtT(r)}</button>`).join('')}</div>
       <button class="btn wide" data-a="mswap">🔁 Swap exercise</button>
       <div class="row" style="margin-top:8px"><button class="btn sp" data-a="mmove" data-v="-1">↑ Move up</button><button class="btn sp" data-a="mmove" data-v="1">↓ Move down</button></div>
-      <a class="btn wide" style="margin-top:8px" href="${esc(howTo(x))}" target="_blank" rel="noopener">▶️ How to do it</a>
+      <button class="btn wide" style="margin-top:8px" data-a="form" data-id="${e.id}">▶️ How to do it</button>
       <button class="btn wide danger" style="margin-top:8px" data-a="mremove">Remove exercise</button>`;
   },
   summary(){
@@ -327,7 +328,7 @@ const MODALS = {
     const sk = SKILLS.find(s => s.id === UI.skill), lv = S.skills[sk.id] || 0, pinned = S.pinned.includes(sk.id);
     return `<h3>${sk.ic} ${sk.n}</h3>
       <div>${sk.steps.map(([n, , t], i) => `<div class="step ${i < lv ? 'done' : i === lv ? 'cur' : 'lock'}"><span class="dot">${i < lv ? '✓' : i + 1}</span>
-        <div class="sp"><a href="${esc(howTo({n}))}" target="_blank" rel="noopener" style="text-decoration:none;font-weight:800">${esc(n)}</a><div class="sm mut">Target: ${esc(t)}</div></div></div>`).join('')}</div>
+        <div class="sp"><button data-a="form" data-id="sk:${sk.id}:${i}" style="font-weight:800;text-align:left">${esc(n)} <span class="acc sm">ⓘ</span></button><div class="sm mut">Target: ${esc(t)}</div></div></div>`).join('')}</div>
       <button class="btn pri wide" style="margin-top:14px" data-a="trainskill">${S.active ? 'Add current step to workout' : 'Practice now ▶'}</button>
       <div class="row" style="margin-top:8px"><button class="btn sp" data-a="pin">${pinned ? '📌 Unpin' : '📌 Pin to Calisthenics days'}</button></div>
       <div class="row" style="margin-top:8px"><button class="btn sp" data-a="lvl" data-v="-1">← Step back</button><button class="btn sp" data-a="lvl" data-v="1">I've got it →</button></div>`;
@@ -351,6 +352,18 @@ const MODALS = {
         ${xy.map(([a, b]) => `<circle cx="${a}" cy="${b}" r="4" fill="#ff2e88"/>`).join('')}
         <text x="8" y="16" fill="#8b8b8b" font-size="11">${Math.round(mx)}</text><text x="8" y="${H - 4}" fill="#8b8b8b" font-size="11">${Math.round(mn)}</text></svg>
       ${[...pts].reverse().map(p => `<div class="exl"><span class="sp">${fmtDate(p.t)}</span><b>${p.top.kg ? p.top.kg + 'kg × ' : ''}${p.top.r}</b><span class="mut sm">${x.t === 'w' ? '≈' + Math.round(p.v) : ''}</span></div>`).join('')}`;
+  },
+  form(){
+    const x = exById(UI.form), k = demoKey(x), info = k && DEMO_INFO[k];
+    const cues = CUES[x.id] || (x.skill && SKILL_CUES[x.skill]) || null;
+    return `<div class="tag">${esc(PATTERNS[x.p] || '')}</div><h3>${esc(x.n)}</h3>
+      <div class="sm mut" style="margin-bottom:12px">${esc(info ? info.mus.join(', ') : x.m || '')}</div>
+      ${k ? `<div class="demo"><img src="img/${k}-0.jpg" alt=""><img class="b" src="img/${k}-1.jpg" alt=""><span class="lbl">START ⇄ FINISH</span></div>` : ''}
+      ${cues ? `<h2>${info ? 'Key points' : 'How to do it'}</h2><ol class="howto">${cues.map(c => `<li>${esc(c)}</li>`).join('')}</ol>` : ''}
+      ${info ? `<h2>Step by step</h2><ol class="howto">${info.steps.map(c => `<li>${esc(c)}</li>`).join('')}</ol>` : ''}
+      ${!k && !cues ? `<div class="empty"><div class="big">💪</div>No demo for this one yet.</div>` : ''}
+      ${x.link ? `<a class="btn wide" style="margin-top:12px" href="${esc(x.link)}" target="_blank" rel="noopener">${platform(x.link)[1]} Watch your saved video ↗</a>` : ''}
+      <button class="btn wide" style="margin-top:14px" data-a="formback">${UI.formBack ? '← Back' : 'Close'}</button>`;
   },
   mix(){
     const src = wById(UI.mixId);
@@ -484,6 +497,8 @@ const A = {
   hist: el => { UI.hid = el.dataset.id; open('hist'); },
   hdel: () => { if (!confirm('Delete this workout from history?')) return; S.history = S.history.filter(h => h.id !== UI.hid); save(); close(); },
   redo: () => { const h = S.history.find(x => x.id === UI.hid); startWorkout({id:h.src, n:h.name, cat:''}, h.ex.map(e => [e.id, e.sets.length, e.reps || e.sets[0].r, exById(e.id).t === 'w' ? 120 : 90])); },
+  form: el => { UI.formBack = UI.modal && UI.modal !== 'form' ? UI.modal : null; UI.form = el.dataset.id; open('form'); },
+  formback: () => { const b = UI.formBack; UI.formBack = null; b ? open(b) : close(); },
   prog: el => { UI.prog = el.dataset.id; open('prog'); },
   settings: () => open('settings'),
   export: async () => {
