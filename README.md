@@ -4,8 +4,6 @@
 
 A personal trainer in your pocket: ready-made, goal-tuned workouts, smart progression, structured programs, calisthenics skill paths and **Kai**, a friendly AI wellness coach. Built to be **free to run**: no paid AI, no subscriptions.
 
-**Live web app:** https://evi1997.github.io/replab/replab/ (open on iPhone in Safari → Share → *Add to Home Screen*)
-
 ---
 
 ## Features
