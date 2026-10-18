@@ -40,7 +40,7 @@ const socialPlayer = w => { const src = embedUrl(w.v, w.embed); return src ? pla
 const demoKey = x => DEMO_MAP[x.id] || (x.skill ? DEMO_MAP[x.n] : null);
 const thumb = (x, size = 56) => { const k = demoKey(x); return k ? `<img class="thumb" style="width:${size}px;height:${size}px" src="img/${k}-1.jpg" alt="" loading="lazy">` : `<span class="thumb ph" style="width:${size}px;height:${size}px">${x.skill ? '⭐' : '💪'}</span>`; };
 const allWorkouts = () => [...S.workouts, ...WORKOUTS];
-const wById = id => allWorkouts().find(w => w.id === id);
+const wById = id => allWorkouts().find(w => w.id === id) || (typeof GENERATED !== 'undefined' && GENERATED[id]);
 const estMin = list => Math.round(list.reduce((t, [, s, , r]) => t + s * (40 + (+r || 60)) + 45, 0) / 60);
 // Fit a workout into a time budget: trim accessory sets first, then drop accessories, then trim main lifts.
 function trim(list, mins){
@@ -137,6 +137,11 @@ const VIEWS = {
     const list = UI.group === 'Mine' ? S.workouts : allWorkouts().filter(w => w.cat === UI.group);
     return `<button class="back" data-a="group" data-v="">‹ Back</button>
       <h1>${esc(UI.group)}</h1>
+      ${UI.group !== 'Mine' && TEMPLATES[UI.group] ? (() => { const eq = UI.equip?.[UI.group] || defaultEquip(UI.group); return `<div class="card hero">
+        <div class="tag">Fresh workout, never the same twice</div>
+        <div class="chips" style="margin:10px -16px 10px">${Object.entries(EQUIP).filter(([k]) => equipFor(UI.group).includes(k)).map(([k, v]) => `<button class="chip ${eq === k ? 'on' : ''}" data-a="equip" data-v="${k}">${v.n}</button>`).join('')}</div>
+        ${!['Cardio','Core'].includes(UI.group) ? `<div class="chips" style="margin:0 -16px 10px">${Object.entries(FORMATS).map(([k, v]) => `<button class="chip ${(UI.format || 'classic') === k ? 'on' : ''}" data-a="format" data-v="${k}">${v.n}</button>`).join('')}</div>` : ''}
+        <button class="btn pri wide" data-a="gen">⚡ Generate a ${esc(UI.group)} workout</button></div>`; })() : ''}
       <div class="tag" style="margin-bottom:8px">How long have you got?</div>
       <div class="chips">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[0,'Any']].map(([m, l]) => `<button class="chip ${UI.tmins === m ? 'on' : ''}" data-a="tmins" data-v="${m}">${l}</button>`).join('')}</div>
       ${list.map(wCard).join('') || `<div class="empty"><div class="big">🧱</div>No workouts here yet.</div>`}`;
@@ -209,6 +214,7 @@ function exCard(e, i){
     <div class="row"><button class="row sp" style="min-width:0;text-align:left" data-a="form" data-id="${e.id}">${thumb(x, 48)}<h3 style="font-size:18px">${esc(x.n)} <span class="acc sm">ⓘ</span></h3></button>
     <button class="ib" data-a="exmenu" data-i="${i}">⋯</button></div>
     <div class="sm mut">${e.sets.length} × ${esc(e.reps)} · rest ${fmtT(e.rest)}${x.m ? ' · ' + esc(x.m) : ''}</div>
+    ${swapRow(e.id, 'swapeq', i, S.active.ex.map(y => y.id))}
     ${sug ? `<div class="hint">${sug.msg}</div>` : x.skill ? '' : `<div class="hint">First time: pick a weight you can do for <b>${esc(e.reps)}</b> with 1–2 reps left.</div>`}
     <table class="sets"><tr><th>SET</th><th>PREV</th><th>${kgL}</th><th>${rL}</th><th></th></tr>
     ${e.sets.map((s, j) => { const p = last[j];
@@ -290,11 +296,11 @@ const MODALS = {
       <div class="chips" style="margin-top:14px">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[0,`Full ~${estMin(P.list)}m`]].map(([m, l]) => `<button class="chip ${P.mins === m ? 'on' : ''}" data-a="mins" data-v="${m}">${l}</button>`).join('')}</div>
       <div>${list.map(([id, s, r, rest], i) => { const x = exById(id), alt = alternatives(id, travel).length;
         return `<div class="exl"><button data-a="form" data-id="${id}">${thumb(x, 44)}</button><div class="sp" style="min-width:0"><button data-a="form" data-id="${id}" style="font-weight:800;text-align:left">${esc(x.n)}</button>
-        <div class="sm mut">${s} × ${esc(r)} · rest ${fmtT(rest)}</div></div>${alt ? `<button class="ib" data-a="swap" data-i="${i}">🔁</button>` : ''}</div>`; }).join('')}</div>
+        <div class="sm mut">${s} × ${esc(r)} · rest ${fmtT(rest)}</div>${swapRow(id, 'pswapeq', i, list.map(y => y[0]))}</div>${alt ? `<button class="ib" data-a="swap" data-i="${i}">🔁</button>` : ''}</div>`; }).join('')}</div>
       ${w.cat === 'Calisthenics' && S.pinned.length ? `<div class="hint" style="margin-top:10px">📌 Plus your pinned skills: <b>${S.pinned.map(id => SKILLS.find(s => s.id === id).n).join(', ')}</b></div>` : ''}
-      ${S.profile && !['Calisthenics','Travel','Cardio','Core'].includes(w.cat) ? `<div class="hint" style="margin-top:10px">${GOALS[S.profile.goal].ic} Sets, reps & rest tuned for <b>${GOALS[S.profile.goal].n}</b></div>` : ''}
+      ${S.profile && !w.fixed && !['Calisthenics','Travel','Cardio','Core'].includes(w.cat) ? `<div class="hint" style="margin-top:10px">${GOALS[S.profile.goal].ic} Sets, reps & rest tuned for <b>${GOALS[S.profile.goal].n}</b></div>` : ''}
       ${!['Cardio','Core'].includes(w.cat) ? `<button class="btn wide s" style="margin-top:10px;${P.fin ? 'border-color:var(--acc);color:var(--acc)' : ''}" data-a="fin">${P.fin ? '✓ 10-min finisher added' : '＋ Add 10-min finisher'}</button>` : ''}
-      <div class="row" style="margin-top:14px"><button class="btn s sp" data-a="shuffle">🎲 Shuffle</button><button class="btn s sp" data-a="customize">✏️ Customize</button>${w.custom ? `<button class="btn s" data-a="edit" data-id="${w.id}">Edit</button>` : ''}</div>
+      <div class="row" style="margin-top:14px">${w.gen ? `<button class="btn s sp" data-a="regen">⚡ Another one</button>` : `<button class="btn s sp" data-a="shuffle">🎲 Shuffle</button>`}<button class="btn s sp" data-a="customize">✏️ Customize</button>${w.custom ? `<button class="btn s" data-a="edit" data-id="${w.id}">Edit</button>` : ''}</div>
       <button class="btn pri wide" style="margin-top:12px" data-a="start">Start workout ▶</button>`;
   },
   editor(){
@@ -482,7 +488,7 @@ function render(){
 }
 const open = m => { UI.modal = m; render(); };
 const close = () => { UI.modal = null; render(); };
-function openPreview(w){ UI.P = {w, list:applyGoal(w, w.ex.map(x => [...x])), mins:UI.tmins, fin:false}; open('preview'); }
+function openPreview(w){ UI.P = {w, list:w.fixed ? w.ex.map(x => [...x]) : applyGoal(w, w.ex.map(x => [...x])), mins:UI.tmins, fin:false}; open('preview'); }
 function openEditor(base){ UI.E = {id:'', n:'', cat:'Upper', notes:'', list:[], ...JSON.parse(JSON.stringify(base || {}))}; open('editor'); }
 function openPicker(mode, from){ UI.pick = {mode, from}; UI.q = ''; open('picker'); }
 
@@ -490,6 +496,12 @@ function openPicker(mode, from){ UI.pick = {mode, from}; UI.q = ''; open('picker
 const A = {
   tab: el => { UI.tab = el.dataset.v; if (el.dataset.v === 'train') UI.group = ''; render(); },
   group: el => { UI.group = el.dataset.v; render(); },
+  equip: el => { UI.equip = {...(UI.equip || {}), [UI.group]:el.dataset.v}; render(); },
+  swapeq: el => { const e = S.active.ex[+el.dataset.i]; e.id = el.dataset.v; save(); render(); toast('Swapped to ' + exById(el.dataset.v).n); },
+  pswapeq: el => { UI.P.list[+el.dataset.i][0] = el.dataset.v; render(); toast('Swapped to ' + exById(el.dataset.v).n); },
+  format: el => { UI.format = el.dataset.v; render(); },
+  gen: () => { const g = UI.group, eq = UI.equip?.[g] || defaultEquip(g), f = ['Cardio','Core'].includes(g) ? 'classic' : UI.format || 'classic'; openPreview(generateWorkout(g, eq, (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0, f)); },
+  regen: () => { const w = UI.P.w; openPreview(generateWorkout(w.cat, w.equip, (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0, w.format)); },
   tmins: el => { UI.tmins = +el.dataset.v; render(); },
   preview: el => openPreview(wById(el.dataset.id)),
   quickstart: el => { const w = wById(el.dataset.id); startWorkout(w, w.ex); },

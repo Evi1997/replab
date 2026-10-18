@@ -137,6 +137,12 @@ const EXERCISES = [
   ['stairs','StairMaster','cardio','mach','s','Glutes, cardio'],
   ['skater','Skater Jumps','cardio','bw','s','Legs, agility'],
   ['jjack','Jumping Jacks','cardio','bw','s','Cardio'],
+  ['dbcurl','Dumbbell Curl','biceps','db','w','Biceps'],
+  ['dbohtri','Overhead Dumbbell Extension','triceps','db','w','Triceps (long head)'],
+  ['dbrear','Bent-Over Rear Delt Raise','reardelt','db','w','Rear delts'],
+  ['dbrow2','Bent-Over Dumbbell Row','hpull','db','w','Upper back, lats'],
+  ['dbpullover','Dumbbell Pullover','latiso','db','w','Lats, chest'],
+  ['tablerow','Under-Table Row','hpull','bw','r','Upper back, biceps'],
 ].map(([id,n,p,e,t,m]) => ({id,n,p,e,t,m}));
 
 // Workouts: [exerciseId, sets, reps, restSeconds]. Order = priority (trimmed from the end for shorter sessions).
