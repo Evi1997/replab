@@ -135,7 +135,11 @@ function chatView(){
     <div class="tag" style="margin-top:-10px">${aiReady() ? '✨ AI coach · free' : 'Built-in coach · works offline'}</div>
     <div class="chat">${c.msgs.map(m => `<div class="msg ${m.from}">${m.text}</div>`).join('')}${c.pending ? '<div class="msg coach mut">Coach is typing…</div>' : ''}</div>
     ${last?.quick ? `<div class="quick">${Object.entries(last.quick).map(([k, v]) => `<button class="chip ${['open'].includes(k) ? 'on' : ''}" data-a="chatq" data-k="${k}">${v}</button>`).join('')}</div>` : ''}
-    <div class="row chatbar"><input id="chatin" placeholder="e.g. tired, gym, legs, 45 min" autocomplete="off" enterkeyhint="send"><button class="btn pri s" data-a="chatsend">Send</button></div>`;
+`;
+}
+// message bar pinned above the tab bar (rendered outside the scrolling area)
+function chatBar(){
+  return `<div class="row chatbar"><input id="chatin" placeholder="" autocomplete="off" enterkeyhint="send" aria-label="Message your coach"><button class="sendbtn" data-a="chatsend" aria-label="Send">↑</button></div>`;
 }
 
 // ---------- AI coach (Cloudflare Workers AI free allowance, via your helper) ----------
