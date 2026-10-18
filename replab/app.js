@@ -107,7 +107,7 @@ function beep(){
 
 // ---------- views ----------
 function tabbar(){
-  const tabs = [['train','🏋️','Train'],['skills','⭐','Skills'],['history','📈','Progress']];
+  const tabs = [['train','🏋️','Train'],['coach','💬','Coach'],['skills','⭐','Skills'],['history','📈','Progress']];
   return `<nav class="tabbar">${tabs.map(([k, i, l]) => `<button class="${UI.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}"><span class="i">${i}</span>${l}</button>`).join('')}</nav>`;
 }
 function resumeBar(){
@@ -123,6 +123,7 @@ function wCard(w){
 }
 const GROUPS = [['Legs','🦵'],['Glutes','🍑'],['Push','🏋️'],['Pull','🧗'],['Upper','💪'],['Arms','🦾'],['Full Body','🔥'],['Core','🎯'],['Cardio','❤️'],['Calisthenics','🤸'],['Travel','✈️']];
 const VIEWS = {
+  coach(){ if (!UI.chat) chatStart(); return chatView(); },
   train(){
     const seq = planSeq(), st = programState(), g = S.profile && GOALS[S.profile.goal];
     const next = st && !st.finished ? st.next : wById(seq[S.settings.pos % seq.length]);
@@ -132,7 +133,6 @@ const VIEWS = {
         ${checkinDue() ? `<button class="card hero tap wcard" data-a="checkin"><span style="font-size:26px">🗓️</span><div class="sp" style="text-align:left"><div class="tag">Coach check-in due</div><div style="font-weight:800;margin-top:2px">2 minutes: review the last 2 weeks and fine-tune your plan</div></div><span class="chev">›</span></button>` : ''}
         ${deloadActive() ? `<div class="hint" style="margin-bottom:12px">🧘 <b>Deload week</b> until ${fmtDate(S.deloadUntil)}: half the sets, same weights. Recover and come back stronger.</div>` : ''}
         ${st?.finished ? `<div class="hint" style="margin-bottom:12px">🏆 You finished <b>${esc(st.P.n)}</b>! Pick your next program or go back to your plan. <button class="btn s" data-a="progstop">Back to my plan</button></div>` : ''}
-        <button class="card tap wcard chatcta" data-a="chat"><span style="font-size:28px">💬</span><div class="sp" style="text-align:left"><div style="font-weight:900;font-size:17px">Not sure what to do today?</div><div class="sm mut">Tell your coach how you feel and where you are</div></div><span class="chev">›</span></button>
         ${g ? `<button class="coachchip" data-a="coach">${g.ic} <b>${g.n}</b><span class="mut"> · ${S.profile.days}×/week · your plan</span><span class="sp"></span>›</button>` : ''}
         ${next ? `<button class="card hero tap wcard" data-a="preview" data-id="${next.id}"><div class="sp" style="text-align:left"><div class="tag">${st && !st.finished ? `${st.P.ic} Week ${st.week + 1}/${st.P.weeks} · ${st.phase.n} · day ${st.day + 1}` : `Up next · day ${S.settings.pos % seq.length + 1} of ${seq.length}`}</div>
           <div style="font-weight:900;font-size:20px;margin-top:4px">${esc(next.n)}</div></div><span class="go">▶</span></button>` : ''}
@@ -426,7 +426,7 @@ function render(){
   $('#modal').innerHTML = UI.modal ? `<div class="bg" data-a="bgclose"><div class="sheet"><div class="sheethead"><div class="grab"></div><button class="x" data-a="close" aria-label="Close">✕</button></div>${MODALS[UI.modal]()}</div></div>` : '';
   if (aw && $('#overlay .aw')) $('#overlay .aw').scrollTop = aw;
   if (sh && $('#modal .sheet')) $('#modal .sheet').scrollTop = sh;
-  if (UI.modal === 'chat') $('#modal .sheet').scrollTop = 1e6;
+  if (UI.tab === 'coach' && !UI.modal && $('#scroller')) $('#scroller').scrollTop = 1e6;
   document.body.classList.toggle('lock', !!(UI.modal || (S.active && UI.showActive)));
   tickRest();
 }
@@ -542,9 +542,10 @@ const A = {
   form: el => { UI.formBack = UI.modal && UI.modal !== 'form' ? UI.modal : null; UI.form = el.dataset.id; open('form'); },
   formback: () => { const b = UI.formBack; UI.formBack = null; b ? open(b) : close(); },
   coach: () => open('coach'),
-  chat: () => { if (!UI.chat) chatStart(); open('chat'); },
-  chatq: el => { const k = el.dataset.k; if (k.startsWith('ai:')) chatInput(k.slice(3)); else chatInput(el.textContent, k); if (UI.modal === 'chat') render(); },
-  chatsend: () => { const i = $('#chatin'); const t = i.value; i.value = ''; chatInput(t); if (UI.modal === 'chat') { render(); $('#chatin')?.focus(); } },
+  chat: () => { UI.tab = 'coach'; UI.modal = null; render(); },
+  chatnew: () => { chatStart(); render(); },
+  chatq: el => { const k = el.dataset.k; if (k.startsWith('ai:')) chatInput(k.slice(3)); else chatInput(el.textContent, k); render(); },
+  chatsend: () => { const i = $('#chatin'); const t = i.value; i.value = ''; chatInput(t); render(); $('#chatin')?.focus(); },
   programs: () => open('programs'),
   progstart: el => { if (S.program && !confirm('Replace your current program?')) return; S.program = {id:el.dataset.id, start:Date.now(), done:0}; save(); close(); toast('Program started 💪'); },
   progstop: () => { if (!confirm('Stop this program and go back to your coach plan?')) return; S.program = null; save(); close(); },

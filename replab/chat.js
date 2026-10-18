@@ -54,6 +54,7 @@ function chatSay(text, quick){ UI.chat.msgs.push({from:'coach', text, quick}); }
 function chatStart(){
   UI.chat = {slots:{}, msgs:[]};
   const name = S.profile ? GOALS[S.profile.goal].n.toLowerCase() : 'your goals';
+  if (aiReady()) return chatSay(`Hey! 👋 I'm your coach. I'll build today's session around ${esc(name)}.<br><br><b>How are you feeling today?</b>`);
   chatSay(`Hey! 👋 I'll build today's session around ${esc(name)}. Tell me in your own words, e.g. <i>"tired, hotel room, legs, 30 min, knee hurts"</i>, or tap below.<br><br><b>How are you feeling today?</b>`, FEEL);
 }
 function chatNext(){
@@ -130,7 +131,8 @@ function chatOpen(){
 }
 function chatView(){
   const c = UI.chat, last = c.msgs[c.msgs.length - 1];
-  return `<div class="tag">${aiReady() ? 'AI coach · free (Cloudflare) · falls back to built-in coach offline' : 'Coach chat · built-in rules, works offline'}</div>
+  return `<div class="row"><h1 class="sp">Your <em>coach</em></h1><button class="btn s" data-a="chatnew">↺ New</button></div>
+    <div class="tag" style="margin-top:-10px">${aiReady() ? '✨ AI coach · free' : 'Built-in coach · works offline'}</div>
     <div class="chat">${c.msgs.map(m => `<div class="msg ${m.from}">${m.text}</div>`).join('')}${c.pending ? '<div class="msg coach mut">Coach is typing…</div>' : ''}</div>
     ${last?.quick ? `<div class="quick">${Object.entries(last.quick).map(([k, v]) => `<button class="chip ${['open'].includes(k) ? 'on' : ''}" data-a="chatq" data-k="${k}">${v}</button>`).join('')}</div>` : ''}
     <div class="row chatbar"><input id="chatin" placeholder="e.g. tired, gym, legs, 45 min" autocomplete="off" enterkeyhint="send"><button class="btn pri s" data-a="chatsend">Send</button></div>`;
@@ -143,13 +145,18 @@ function aiSystemPrompt(){
   const recent = S.history.slice(-6).map(h => `${new Date(h.start).toDateString()}: ${h.name}`).join('\n') || 'none yet';
   const catalog = EXERCISES.map(e => `${e.id}|${e.n}|${e.p}|${e.e}`).join('\n');
   return `You are Rep Lab's personal trainer: a certified strength & conditioning coach with 10+ years of experience. Warm, direct, evidence-based, never preachy. Keep replies to 2-4 short sentences.
-Your job: understand how the client feels today, where they are (equipment), what they want to train, how much time they have, and any pain or injury, then build today's workout. Ask at most ONE short question at a time, and only if something important is missing; if the message already gives enough, build straight away. If they say "you choose", pick sensibly from their recent training. For sharp or persistent pain, recommend a physio and train around it. Never give medical diagnoses.
+How you work, like a real coach in a consultation:
+1. Before building ANY workout you must know four things the client has actually told you in this chat (never assume or fill in defaults): (a) how they feel / energy today, (b) where they are or what equipment they have, (c) what they want to train, or that they want you to choose, (d) how much time they have.
+2. If anything is missing, ask about ONE missing thing per message, naturally, reacting to what they just said (e.g. "Tired days still count. Where are you training?"). Offer 2-4 short quick-reply options. If they mention feeling tired or sore, also check gently whether anything hurts.
+3. Think like a coach: their goal, their recent workouts (don't hammer the same muscles two days running), recovery, and time available. Tired = moderate effort and fewer sets, never skip warm-up. "You choose" = what they've trained least recently.
+4. Only when all four are known, use action "build" and explain your reasoning in 2-3 sentences.
+5. For sharp or persistent pain, recommend a physio and train around it. Never diagnose.
 
 Client: ${p ? `${g.n} goal, ${LEVELS[p.level]}, trains ${p.days}x/week, usual session ${p.mins} min, ${p.sex === 'f' ? 'female' : 'male'}, ${p.age}y, ${p.kg}kg` : 'no profile'}.${st && !st.finished ? ` On program "${st.P.n}", week ${st.week + 1} (${st.phase.n}).` : ''}${deloadActive() ? ' Currently in a deload week.' : ''}
 Today: ${new Date().toDateString()}. Recent workouts:
 ${recent}
 
-ALWAYS answer with ONLY one JSON object, no other text:
+ALWAYS answer with ONLY one JSON object, no other text. Use null for anything the client has not told you:
 {"reply":"what you say to the client","action":"ask" or "build","quick":["up to 4 short tap-to-answer options, only when asking"],
  "feel":"great|ok|tired|sore","where":"gym|db|bw|bar","focus":"Legs|Glutes|Push|Pull|Upper|Arms|Full Body|Core|Cardio|Calisthenics|Travel|auto",
  "time":minutes,"pain":["knee|back|shoulder|wrist|elbow"],"include":["exercise ids you specifically want"],"exclude":["exercise ids to avoid"]}
@@ -160,7 +167,7 @@ async function aiSend(text){
   const c = UI.chat;
   c.msgs.push({from:'me', text:esc(text)});
   c.ai = [...(c.ai || []), {role:'user', content:text}];
-  c.pending = true; if (UI.modal === 'chat') render();
+  c.pending = true; if (UI.tab === 'coach') render();
   try {
     const token = await accessToken(); if (!token) throw new Error('auth');
     const r = await fetch(S.settings.helper.replace(/\/$/, '') + '/coach', {method:'POST', headers:{'Content-Type':'application/json', Authorization:'Bearer ' + token},
@@ -173,8 +180,12 @@ async function aiSend(text){
     const slots = {feel:pick(o.feel, Object.keys(FEEL)), where:pick(o.where, Object.keys(WHERE)), focus:pick(o.focus, [...Object.keys(FOCUS_OPTS), 'Calisthenics', 'Travel']),
       time:+o.time > 0 ? Math.min(90, Math.max(15, Math.round(+o.time))) : undefined, pain:(o.pain || []).filter(x => PAINS[x])};
     Object.entries(slots).forEach(([k, v]) => { if (v !== undefined && !(Array.isArray(v) && !v.length)) c.slots[k] = v; });
-    if (o.action === 'build') {
-      c.slots.feel ||= 'ok'; c.slots.where ||= 'gym'; c.slots.focus ||= 'auto'; c.slots.time ||= S.profile?.mins || 45;
+    const missing = ['feel', 'where', 'focus', 'time'].find(k => !c.slots[k]);
+    if (o.action === 'build' && missing) {
+      const ask = {feel:['How are you feeling today?', FEEL], where:['Where are you training today?', WHERE], focus:['What would you like to train? Or I can choose.', FOCUS_OPTS], time:['How much time have you got?', TIME_OPTS]}[missing];
+      c.ai.push({role:'assistant', content:JSON.stringify({reply:ask[0], action:'ask'})});
+      chatSay(`${o.reply && missing !== 'feel' ? esc(o.reply.split(/(?<=[.!?])\s/)[0]) + ' ' : ''}<b>${ask[0]}</b>`, ask[1]);
+    } else if (o.action === 'build') {
       chatBuild({reply:o.reply, include:(o.include || []).filter(id => EXMAP[id]), exclude:(o.exclude || []).filter(id => EXMAP[id])});
     } else chatSay(esc(o.reply), Array.isArray(o.quick) && o.quick.length ? Object.fromEntries(o.quick.slice(0, 4).map(q => [`ai:${String(q).slice(0, 40)}`, esc(String(q).slice(0, 40))])) : undefined);
   } catch(e) {
@@ -183,5 +194,5 @@ async function aiSend(text){
     chatSay(`<span class="mut">${e.message === 'auth' ? 'Log in again to use the AI coach.' : 'AI coach unavailable right now.'} Switching to the built-in coach.</span>`);
     chatInput(text);
   }
-  c.pending = false; if (UI.modal === 'chat') render();
+  c.pending = false; if (UI.tab === 'coach') render();
 }
