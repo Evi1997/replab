@@ -1,7 +1,7 @@
 // Account + cloud backup via Supabase's REST API (no SDK). One JSON row per user, protected by row-level security.
 // The anon key is a public key by design; access is limited to your own row by the database policies.
-const SUPA_URL = '';   // e.g. https://abcd1234.supabase.co
-const SUPA_KEY = '';   // anon / public key
+const SUPA_URL = 'https://gcpzdexdatzyyzumbdcq.supabase.co';   // e.g. https://abcd1234.supabase.co
+const SUPA_KEY = 'sb_publishable_ChzAdeFs2WhXcVdJckbO7A_VVHVn11Y';   // anon / public key
 const SESSION_KEY = 'replab.session', DIRTY_KEY = 'replab.dirty', SYNCED_KEY = 'replab.synced';
 const cloudOn = () => !!(SUPA_URL && SUPA_KEY);
 const ls = {get:k => { try { return localStorage.getItem(k); } catch(e) { return null; } }, set:(k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch(e) {} }};
